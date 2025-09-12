@@ -49,7 +49,7 @@ class faculty extends Model
 
    public function classrooms()
     {
-        return $this->hasMany(Classroom::class, 'faculty_id', 'id');
+        return $this->hasMany(classroom::class, 'faculty_id', 'id');
     }
 
     public function users()
