@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+ /* diseño de color del calendario de reservas */
+.fc-reservarEvento-button {
+  background-color: #007BFF !important;  /* Azul */
+  color: white !important;
+  border: 1px solid #007BFF !important;
+  padding: 5px 15px;
+  border-radius: 5px;
+  transition: 0.3s;
+}
+
+.fc-reservarEvento-button:hover {
+  background-color: #0056b3 !important;  /* Azul más oscuro */
+  border-color: #0056b3 !important;
+}
+
+.fc-fechasIrregulares-button {
+  background-color: #4CAF50 !important;  /* Verde */
+  color: white !important;
+  border: 1px solid #4CAF50 !important;
+  padding: 5px 15px;
+  border-radius: 5px;
+  transition: 0.3s;
+}
+
+.fc-fechasIrregulares-button:hover {
+  background-color: #45a049 !important;  /* Verde más oscuro */
+  border-color: #45a049 !important;
+}
+
+/* fin de los colores de botones */
+
+.calendar {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  
+  /* Estilos para el calendario y eventos */
+  :deep(.fc-list-event) {
+    cursor: pointer;
+  }
+  
+  :deep(.fc-list-day-cushion) {
+    background-color: #f3f4f6 !important;
+  }
+  
+  :deep(.fc-list-event-dot) {
+    margin-top: 8px;
+  }
+  
+  :deep(.fc-event) {
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 4px;
+  }
+  
+  :deep(.fc-button) {
+    background-color: #1a202c;
+    border-color: #2d3748;
+  }
+  
+  :deep(.fc-button:hover) {
+    background-color: #2d3748;
+  }
+  
+  :deep(.fc-button-active) {
+    background-color: #4a5568 !important;
+    border-color: #4a5568 !important;
+  }
+  
+  /* Estilos para la vista de lista mejorada */
+  :deep(.event-details) {
+    margin-top: 0.5rem;
+    padding-left: 1rem;
+    border-left: 2px solid #e5e7eb;
+  }
+  
+  :deep(.fc-list-event-title) {
+    vertical-align: top !important;
+  }
+  
+  /* Estilos para modo oscuro */
+  .dark :deep(.fc-list-day-cushion) {
+    background-color: #374151 !important;
+    color: white;
+  }
+  
+  .dark :deep(.fc-list-event-title), 
+  .dark :deep(.fc-list-event-time) {
+    color: #e5e7eb;
+  }
+  
+  .dark :deep(.fc-list-table) {
+    border-color: #4b5563;
+  }
+  
+  .dark :deep(.event-details) {
+    border-left-color: #4b5563;
+  }
+  
+  .dark :deep(.fc-button) {
+    background-color: #334155;
+    border-color: #475569;
+  }
+  
+  .dark :deep(.fc-button:hover) {
+    background-color: #475569;
+  }
+  
+  .dark :deep(.fc-button-active) {
+    background-color: #64748b !important;
+    border-color: #64748b !important;
+  }
+
+    /* Estilo del botón personalizado */
+  :deep(.fc-reserveButton-button) {
+    background-color: #1d4ed8 !important;
+    color: white !important;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    transition: background 0.3s;
+  }
+
+  :deep(.fc-reserveButton-button:hover) {
+    background-color: #2563eb !important;
+  }
+  /* Estilo hover para las celdas del calendario */
+  .fc-daygrid-day {
+    transition: background-color 0.3s, transform 0.2s;
+    cursor: pointer;
+  }
+
+  /* Efecto hover */
+  .fc-daygrid-day:hover {
+    background-color: #f3f4f6 !important; /* Gris claro */
+    transform: scale(1.05); /* Aumenta un poco el tamaño */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+  }
+
+  /* Fondo oscuro transparente */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50;
+  }
+  
+  /* Contenedor del modal */
+  .modal-content {
+    background: #fff;
+    padding: 2rem;
+    width: 500px;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    animation: fadeIn 0.3s ease-in-out;
+    @apply bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  

@@ -1,0 +1,334 @@
+<script setup>
+import { ref, computed } from 'vue';
+import { usePage, router } from '@inertiajs/vue3';
+import ApplicationLogo from '@/Components/ApplicationLogo.vue';
+import Dropdown from '@/Components/Dropdown.vue';
+import DropdownLink from '@/Components/DropdownLink.vue';
+import NavLink from '@/Components/NavLink.vue';
+import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
+import { Link } from '@inertiajs/vue3';
+import Darkmode from '@/Components/Darkmode.vue';
+
+const showingNavigationDropdown = ref(false);
+const page = usePage();
+
+// Computed Property para verificar si el usuario es administrador
+const isAdmin = computed(() => {
+    const user = page.props.auth.user;
+    return user?.rol?.id && [2, 3, 4].includes(user.rol.id);
+});
+
+// Computed Property para determinar si es logout SAML
+const isSamlLoggedIn = computed(() => page.props.saml_logged_in);
+
+// Función para redirigir al Dashboard correspondiente según el rol
+const getAdminDashboardRoute = () => {
+    const user = page.props.auth.user;
+    if (!user) return '#';
+
+    switch (user.rol.id) {
+        case 4: return route('admin.general.dashboard');
+        case 3: return route('admin.estatal.dashboard.index');
+        case 2: return route('admin.area.dashboard');
+        default: return route('dashboard');
+    }
+};
+
+// Manejador para logout estándar
+const handleLogout = () => {
+    router.post(route('logout'), {}, {
+        onSuccess: () => {
+            window.location.reload();
+        }
+    });
+};
+
+// Manejador para logout SAML
+const handleSamlLogout = () => {
+    // Redirigir a la ruta SAML y recargar después de un pequeño retraso
+    window.location.href = '/saml2/fb441f52-a65d-44f8-ac5b-bb12df182d90/logout';
+    setTimeout(() => {
+        window.location.reload();
+    }, 500);
+};
+</script>
+
+<template>
+    <div>
+        <div class="min-h-screen bg-gray-100 dark:bg-gray-900">
+            <nav class="border-b border-blue-700 bg-blue-900">
+                <!-- Primary Navigation Menu -->
+                <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    <div class="flex h-16 justify-between">
+                        <div class="flex">
+                            <!-- Logo -->
+                            <div class="flex shrink-0 items-center">
+                                <Link :href="route('home')">
+                                    <ApplicationLogo
+                                        class="block h-9 w-auto fill-current text-gray-800 dark:text-gray-200"
+                                    />
+                                </Link>
+                            </div>
+
+                            <!-- Navigation Links -->
+                            <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                                <NavLink
+                                    :href="route('home')"
+                                    :active="route().current('home')"
+                                >
+                                    Dashboard
+                                </NavLink>
+                                <NavLink
+                                    :href="route('agenda.evento.public')"
+                                    :active="route().current('agenda.evento.public')"
+                                >
+                                   Agendar Evento
+                                </NavLink>
+
+                                <NavLink
+                                    :href="route('escenariosDisponibles.index')"
+                                    :active="route().current('escenariosDisponibles.index')"
+                                >
+                                    Escenarios Disponibles
+                                </NavLink>
+                                <NavLink
+                                    :href="route('misReservaciones.index')"
+                                    :active="route().current('misReservaciones.index')"
+                                >
+                                    Mis Reservaciones
+                                </NavLink>
+                                <NavLink
+                                    :href="route('quejas.sugerencias')"
+                                    :active="route().current('quejas.sugerencias')"
+                                >
+                                    Quejas y Sugerencias
+                                </NavLink>
+                            </div>
+                        </div>
+
+                        <div class="hidden sm:ms-6 sm:flex sm:items-center">
+                            <!-- Modo Oscuro y Ajustes -->
+                            <div class="relative ms-3">
+                                <Dropdown align="right" width="48">
+                                    <template #trigger>
+                                        <span class="inline-flex rounded-md">
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center rounded-md border border-indigo-600 bg-gray-800 px-3 py-2 text-sm font-medium leading-4 text-white transition duration-150 ease-in-out hover:text-white hover:border-indigo-400 focus:outline-none"
+                                            >
+                                                Ajustes
+                                                <svg
+                                                    class="-me-0.5 ms-2 h-4 w-4"
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 20 20"
+                                                    fill="currentColor"
+                                                >
+                                                    <path
+                                                        fill-rule="evenodd"
+                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                        clip-rule="evenodd"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    </template>
+                                    <template #content>
+                                        Modo oscuro
+                                        <div>
+                                            <Darkmode />
+                                        </div>
+                                    </template>
+                                </Dropdown>
+                            </div>
+
+                            <!-- User Dropdown -->
+                            <div class="relative ms-3">
+                                <Dropdown align="right" width="48">
+                                    <template #trigger>
+                                        <span class="inline-flex rounded-md">
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center rounded-md border border-indigo-600 bg-gray-800 px-3 py-2 text-sm font-medium leading-4 text-white transition duration-150 ease-in-out hover:text-white hover:border-indigo-400 focus:outline-none"
+                                            >
+                                                {{ $page.props.auth.user.name }}
+                                                <svg
+                                                    class="-me-0.5 ms-2 h-4 w-4"
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 20 20"
+                                                    fill="currentColor"
+                                                >
+                                                    <path
+                                                        fill-rule="evenodd"
+                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                        clip-rule="evenodd"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    </template>
+
+                                    <template #content>
+                                        <DropdownLink :href="route('profile.edit')">
+                                            Profile
+                                        </DropdownLink>
+                                        <DropdownLink v-if="isAdmin" :href="getAdminDashboardRoute()">
+                                            Administrar
+                                        </DropdownLink>
+                                        <DropdownLink
+                                            v-if="!isSamlLoggedIn"
+                                            :href="route('logout')"
+                                            method="post"
+                                            as="button"
+                                            @click.prevent="handleLogout"
+                                        >
+                                            Log Out
+                                        </DropdownLink>
+                                        <a
+                                            v-else
+                                            href="/saml2/fb441f52-a65d-44f8-ac5b-bb12df182d90/logout"
+                                            class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 transition duration-150 ease-in-out hover:bg-gray-100 focus:bg-gray-100 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
+                                            @click.prevent="handleSamlLogout"
+                                        >
+                                            Log Out (SAML)
+                                        </a>
+                                    </template>
+                                </Dropdown>
+                            </div>
+                        </div>
+
+                        <!-- Hamburger -->
+                        <div class="-me-2 flex items-center sm:hidden">
+                            <button
+                                @click="showingNavigationDropdown = !showingNavigationDropdown"
+                                class="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none dark:text-gray-500 dark:hover:bg-gray-900 dark:hover:text-gray-400 dark:focus:bg-gray-900 dark:focus:text-gray-400"
+                            >
+                                <svg
+                                    class="h-6 w-6"
+                                    stroke="currentColor"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        :class="{
+                                            hidden: showingNavigationDropdown,
+                                            'inline-flex': !showingNavigationDropdown,
+                                        }"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M4 6h16M4 12h16M4 18h16"
+                                    />
+                                    <path
+                                        :class="{
+                                            hidden: !showingNavigationDropdown,
+                                            'inline-flex': showingNavigationDropdown,
+                                        }"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Responsive Navigation Menu -->
+                <div
+                    :class="{
+                        block: showingNavigationDropdown,
+                        hidden: !showingNavigationDropdown,
+                    }"
+                    class="sm:hidden"
+                >
+                    <div class="space-y-1 pb-3 pt-2">
+                        <ResponsiveNavLink
+                            :href="route('home')"
+                            :active="route().current('home')"
+                        >
+                            Dashboard
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('agenda.evento.public')"
+                            :active="route().current('agenda.evento.public')"
+                        >
+                            Agendar Evento
+                        </ResponsiveNavLink>
+
+                        <ResponsiveNavLink
+                            :href="route('escenariosDisponibles.index')"
+                            :active="route().current('escenariosDisponibles.index')"
+                        >
+                            Escenarios Disponibles
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('misReservaciones.index')"
+                            :active="route().current('misReservaciones.index')"
+                        >
+                            Mis Reservaciones
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('quejas.sugerencias')"
+                            :active="route().current('quejas.sugerencias')"
+                        >
+                            Quejas y Sugerencias
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="isAdmin"
+                            :href="getAdminDashboardRoute()"
+                            :active="route().current(getAdminDashboardRoute())"
+                        >
+                            Administrar
+                        </ResponsiveNavLink>
+                    </div>
+
+                    <!-- Responsive Settings Options -->
+                    <div class="border-t border-gray-200 pb-1 pt-4 dark:border-gray-600">
+                        <div class="px-4">
+                            <div class="text-base font-medium text-gray-800 dark:text-gray-200">
+                                {{ $page.props.auth.user.name }}
+                            </div>
+                            <div class="text-sm font-medium text-gray-500">
+                                {{ $page.props.auth.user.email }}
+                            </div>
+                        </div>
+
+                        <div class="mt-3 space-y-1">
+                            <ResponsiveNavLink :href="route('profile.edit')">
+                                Profile
+                            </ResponsiveNavLink>
+                            <ResponsiveNavLink
+                                v-if="!isSamlLoggedIn"
+                                :href="route('logout')"
+                                method="post"
+                                as="button"
+                            >
+                                Log Out
+                            </ResponsiveNavLink>
+                            <a
+                                v-else
+                                href="/saml2/fb441f52-a65d-44f8-ac5b-bb12df182d90/logout"
+                                class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 transition duration-150 ease-in-out hover:bg-gray-100 focus:bg-gray-100 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
+                            >
+                                Log Out (SAML)
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Page Heading -->
+            <header class="bg-white shadow dark:bg-gray-800" v-if="$slots.header">
+                <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                    <slot name="header" />
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main>
+                <slot />
+            </main>
+        </div>
+    </div>
+</template>
