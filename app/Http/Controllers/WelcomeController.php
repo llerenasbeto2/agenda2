@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-use App\Models\Faculty;
+use App\Models\faculty;
 use App\Models\Municipality;
 use App\Models\Classroom;
 use Illuminate\Http\Request;
@@ -14,7 +14,7 @@ class WelcomeController extends Controller
 {
     public function index()
     {
-        $faculties = Faculty::withCount('classrooms')->get();
+        $faculties = faculty::withCount('classrooms')->get();
         $municipalities = Municipality::get();
         $classrooms = Classroom::get();
       
