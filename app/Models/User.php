@@ -104,18 +104,18 @@ class User extends Authenticatable
     }
     public function faculty()
     {
-        return $this->belongsTo(Faculty::class, 'faculty_id');
+        return $this->belongsTo(faculty::class, 'faculty_id');
     }
 
 
     public function responsibleFaculty()
 {
-    return $this->belongsTo(Faculty::class, 'responsible_id');
+    return $this->belongsTo(faculty::class, 'responsible_id');
 }
 
 public function responsibleClassroom()
 {
-    return $this->belongsTo(Classroom::class, 'responsible_id');
+    return $this->belongsTo(classroom::class, 'responsible_id');
 }
 
 
