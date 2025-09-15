@@ -12,7 +12,7 @@ use App\Models\reservation_classroom;
 use App\Models\classroom;
 use App\Models\Categorie;
 use App\Models\faculty;
-use App\Models\municipality;
+use App\Models\Municipality;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -42,7 +42,7 @@ public function index(Request $request)
         return $reservacion;
     });
 
-    $faculties = Faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
+    $faculties = faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
         return [
             'id' => (int) $faculty->id,
             'name' => $faculty->name,
@@ -50,7 +50,7 @@ public function index(Request $request)
         ];
     })->values();
 
-    $classrooms = Classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
+    $classrooms = classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
         return [
             'id' => (int) $classroom->id,
             'name' => $classroom->name,
@@ -77,7 +77,7 @@ public function index(Request $request)
         'status' => 'required|string|in:Pendiente,Aprobado,Rechazado,Cancelado,No_realizado,Realizado',
     ]);
 
-    $reservation = Reservation_Classroom::findOrFail($id);
+    $reservation = reservation_classroom::findOrFail($id);
     $reservation->status = $request->status;
     $reservation->save();
 
@@ -114,14 +114,14 @@ public function edit(reservation_classroom $reservacion)
             'payment_date' => $reservacion->payment_date ? $reservacion->payment_date->format('Y-m-d') : null,
 
         ],
-        'faculties' => Faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
+        'faculties' => faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
             return [
                 'id' => (int) $faculty->id,
                 'name' => $faculty->name,
                 'municipality_id' => $faculty->municipality_id !== null ? (int) $faculty->municipality_id : null
             ];
         })->values(),
-        'classrooms' => Classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
+        'classrooms' => classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
             return [
                 'id' => (int) $classroom->id,
                 'name' => $classroom->name,
@@ -466,7 +466,7 @@ public function update(Request $request, reservation_classroom $reservacion)
     ]);
 
     try {
-        $reservation = Reservation_Classroom::with('classroom')->findOrFail($validated['reservation_id']);
+        $reservation = reservation_classroom::with('classroom')->findOrFail($validated['reservation_id']);
         $sender = auth()->user();
 
         if (!$sender) {
