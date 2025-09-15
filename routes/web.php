@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\StatisticController;
 use App\Http\Controllers\UsersController;
-use App\Http\Controllers\MyReservationsclassroomController;
+use App\Http\Controllers\MyreservationsclassroomController;
 use App\Http\Controllers\CalendarioController;
 
 use Inertia\Inertia;
@@ -73,7 +73,7 @@ Route::prefix('api')->middleware(['api'])->group(function () {
         Route::get('/quejas', [QuejasController::class, 'index'])->name('quejas.index');
         Route::post('/quejas', [QuejasController::class, 'store'])->name('quejas.store');
         // Rutas de los chicos
-    Route::get('/agendar-evento', [MyReservationsclassroomController::class, 'create'])
+    Route::get('/agendar-evento', [MyreservationsclassroomController::class, 'create'])
     ->name('agenda.evento.public');
 
 
@@ -93,7 +93,7 @@ Route::get('/existing-reservations', [MyreservationsclassroomController::class, 
 Route::post('/check-reservation-conflicts', [MyreservationsclassroomController::class, 'checkConflicts'])
     ->name('reservations.check.conflicts');
 
-Route::post('/myreservationsclassroom', [MyReservationsclassroomController::class, 'store'])
+Route::post('/myreservationsclassroom', [MyreservationsclassroomController::class, 'store'])
     ->name('myreservationsclassroom.store');
 //SOLO LAS RUTAS DE ARRIBA BETO
 
@@ -113,7 +113,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    Route::get('/classrooms', [MyReservationsclassroomController::class, 'getClassrooms'])
+    Route::get('/classrooms', [MyreservationsclassroomController::class, 'getClassrooms'])
     ->name('api.classrooms');
     //Ruta para que se muestren las imágenes en escenarios disponibles
     Route::post('/classrooms/{classroom}/image-url', [EscenariosDisponiblesController::class, 'updateImageUrl'])
@@ -137,7 +137,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('misReservaciones.index');
 
     // Ruta para crear eventos (solo autenticados)
-    Route::post('/eventos', [MyReservationsclassroomController::class, 'store'])->name('eventos.store');
+    Route::post('/eventos', [MyreservationsclassroomController::class, 'store'])->name('eventos.store');
 });
 
 
