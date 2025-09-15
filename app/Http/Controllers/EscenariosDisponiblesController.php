@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\faculty;
 use App\Models\classroom;
-use App\Models\municipality;
+use App\Models\Municipality;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 
@@ -47,7 +47,7 @@ class EscenariosDisponiblesController extends Controller
                 return $facultyData;
             });
 
-        $municipalities = municipality::select('id', 'name')
+        $municipalities = Municipality::select('id', 'name')
             ->orderBy('name')
             ->get()
             ->map(function ($municipality) {
