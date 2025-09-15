@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\reservation_classroom;
 use App\Models\classroom;
-use App\Models\Faculty;
+use App\Models\faculty;
 use App\Models\Categorie;
 use App\Models\Municipality;
 use Illuminate\Support\Facades\Auth;
@@ -25,7 +25,7 @@ class MyreservationsclassroomController extends Controller
         return Inertia::render('Eventos/Create', [
             'userData' => $userData,
             'formData' => [
-                'faculties' => Faculty::select('id', 'name', 'responsible', 'municipality_id', 'image', 'web_site')->get(),
+                'faculties' => faculty::select('id', 'name', 'responsible', 'municipality_id', 'image', 'web_site')->get(),
                 'categories' => Categorie::select('id', 'name')->get(),
                 'municipalities' => Municipality::select('id', 'name')->get(),
                 'classrooms' => classroom::all(),
@@ -43,7 +43,7 @@ class MyreservationsclassroomController extends Controller
             'municipality_id' => 'required|exists:municipalities,id'
         ]);
 
-        $faculties = Faculty::where('municipality_id', $request->municipality_id)
+        $faculties = faculty::where('municipality_id', $request->municipality_id)
             ->select('id', 'name', 'municipality_id')
             ->get();
 
