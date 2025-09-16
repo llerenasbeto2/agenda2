@@ -31,7 +31,7 @@ class classroom_statistic extends Model
 
     public function classroom()
     {
-        return $this->belongsTo(Classroom::class);
+        return $this->belongsTo(classroom::class);
     }
 
     public function municipality()
@@ -41,6 +41,6 @@ class classroom_statistic extends Model
 
     public function faculty()
     {
-        return $this->belongsTo(Faculty::class);
+        return $this->belongsTo(faculty::class);
     }
 }

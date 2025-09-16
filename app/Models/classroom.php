@@ -27,12 +27,12 @@ class classroom extends Model
 
     public function faculty()
     {
-        return $this->belongsTo(Faculty::class, 'faculty_id', 'id');
+        return $this->belongsTo(faculty::class, 'faculty_id', 'id');
     }
 
     public function reservations()
     {
-        return $this->hasMany(Reservation_Classroom::class);
+        return $this->hasMany(reservation_classroom::class);
     }
 
     public function complaints()

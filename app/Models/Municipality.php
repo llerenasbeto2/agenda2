@@ -14,7 +14,7 @@ class Municipality extends Model
 
     public function faculties()
     {
-        return $this->hasMany(Faculty::class);
+        return $this->hasMany(faculty::class);
     }
 
     public function categories()

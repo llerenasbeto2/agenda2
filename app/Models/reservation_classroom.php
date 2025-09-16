@@ -52,7 +52,7 @@ class reservation_classroom extends Model
      */
     public function classroom()
     {
-        return $this->belongsTo(Classroom::class);
+        return $this->belongsTo(classroom::class);
     }
 
     /**
@@ -60,7 +60,7 @@ class reservation_classroom extends Model
      */
     public function faculty()
     {
-        return $this->belongsTo(Faculty::class);
+        return $this->belongsTo(faculty::class);
     }
 
     /**
