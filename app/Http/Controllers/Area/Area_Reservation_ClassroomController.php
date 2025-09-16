@@ -11,7 +11,7 @@ use App\Models\reservation_classroom;
 use App\Models\classroom;
 use App\Models\Categorie;
 use App\Models\faculty;
-use App\Models\municipality;
+use App\Models\Mnicipality;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -66,8 +66,8 @@ class Area_Reservation_ClassroomController extends Controller
 
         return Inertia::render('Admin/Area/Dashboard', [
             'reservaciones' => $reservaciones,
-            'faculties' => Faculty::select('id', 'name')->get(),
-            'classrooms' => Classroom::select('id', 'name', 'faculty_id')->get(),
+            'faculties' => faculty::select('id', 'name')->get(),
+            'classrooms' => classroom::select('id', 'name', 'faculty_id')->get(),
             'categorie' => Categorie::select('id', 'name')->get(),
             'municipalities' => Municipality::select('id', 'name')->get(),
             'auth' => [
@@ -122,14 +122,14 @@ class Area_Reservation_ClassroomController extends Controller
                 'is_paid' => (bool) $reservacion->is_paid,
                 'payment_date' => $reservacion->payment_date ? $reservacion->payment_date->format('Y-m-d') : null,
             ],
-            'faculties' => Faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
+            'faculties' => faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
                 return [
                     'id' => (int) $faculty->id,
                     'name' => $faculty->name,
                     'municipality_id' => $faculty->municipality_id !== null ? (int) $faculty->municipality_id : null
                 ];
             })->values(),
-            'classrooms' => Classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
+            'classrooms' => classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
                 return [
                     'id' => (int) $classroom->id,
                     'name' => $classroom->name,
@@ -344,7 +344,7 @@ class Area_Reservation_ClassroomController extends Controller
         ]);
 
         try {
-            $reservation = Reservation_Classroom::with('classroom')->findOrFail($validated['reservation_id']);
+            $reservation = reservation_classroom::with('classroom')->findOrFail($validated['reservation_id']);
             $sender = auth()->user();
 
             if (!$sender) {
