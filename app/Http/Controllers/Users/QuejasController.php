@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Users;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Config;
+use App\Jobs\SendComplaintEmailJob;
 use Inertia\Inertia;
 
 class QuejasController extends Controller
@@ -29,9 +28,6 @@ class QuejasController extends Controller
         ]);
 
         try {
-            // Configurar timeout más corto para evitar el error de 30 segundos
-            ini_set('max_execution_time', 60);
-            
             // Determinar el email según el estado de autenticación
             if (Auth::check()) {
                 $userEmail = auth()->user()->email;
@@ -44,12 +40,10 @@ class QuejasController extends Controller
             $senderName = $validated['anonymous'] ? 'Anónimo' : ($validated['full_name'] ?: 'Usuario');
             $recipientEmail = 'agendaudec@gmail.com';
 
-            Log::info('Intentando enviar correo de queja/sugerencia', [
+            Log::info('Preparando email para cola', [
                 'to' => $recipientEmail,
-                'from' => config('mail.from.address'),
                 'replyTo' => $senderEmail,
                 'category' => $validated['category'],
-                'message' => $validated['message'],
                 'authenticated' => Auth::check(),
             ]);
 
@@ -62,62 +56,53 @@ class QuejasController extends Controller
             $messageContent .= "Email: {$validated['email']}\n\n";
             $messageContent .= "Mensaje: {$validated['message']}";
 
-            // Configurar timeout específico para el mailer
-            Config::set('mail.timeout', 20);
+            // Preparar datos para el Job
+            $emailData = [
+                'content' => $messageContent,
+                'recipient' => $recipientEmail,
+                'replyTo' => $senderEmail,
+                'senderName' => $senderName,
+                'subject' => "Nueva {$validated['category']}"
+            ];
 
-            // Envío de correo con manejo de timeout
-            $this->sendEmailWithTimeout($messageContent, $senderEmail, $senderName, $validated, $recipientEmail);
+            // Despachar el job a la cola
+            SendComplaintEmailJob::dispatch($emailData);
 
-            Log::info('Correo enviado exitosamente');
-            return redirect()->route('quejas.index')->with('success', 'Queja/Sugerencia enviada correctamente');
-            
-        } catch (\Symfony\Component\Mailer\Exception\TransportException $e) {
-            Log::error('Error de transporte SMTP', [
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
+            Log::info('Email agregado a la cola exitosamente', [
+                'recipient' => $recipientEmail,
+                'subject' => $emailData['subject']
             ]);
-            
-            // Intentar método alternativo
-            return $this->handleEmailFailure($validated);
-            
+
+            return redirect()->route('quejas.index')->with('success', 
+                'Tu mensaje ha sido recibido y será procesado en breve. Gracias por contactarnos.');
+
         } catch (\Exception $e) {
-            Log::error('Error general al enviar queja/sugerencia', [
+            Log::error('Error al procesar queja/sugerencia', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
-            return $this->handleEmailFailure($validated);
+
+            return redirect()->back()->withErrors([
+                'error' => 'Ocurrió un error al procesar tu mensaje. Por favor intenta nuevamente.'
+            ]);
         }
     }
 
-    private function sendEmailWithTimeout($messageContent, $senderEmail, $senderName, $validated, $recipientEmail)
+    // Método adicional para revisar el estado de la cola (opcional)
+    public function queueStatus()
     {
-        // Usar un timeout más corto y manejo de errores específico
-        try {
-            Mail::raw($messageContent, function ($message) use ($senderEmail, $senderName, $validated, $recipientEmail) {
-                $message->to($recipientEmail)
-                        ->from(config('mail.from.address'), config('mail.from.name'))
-                        ->replyTo($senderEmail, $senderName)
-                        ->subject("Nueva {$validated['category']}");
-            });
-        } catch (\Exception $e) {
-            Log::error('Error específico en envío de correo', ['error' => $e->getMessage()]);
-            throw $e;
+        if (!Auth::check() || !auth()->user()->hasRole('admin')) {
+            abort(403);
         }
-    }
 
-    private function handleEmailFailure($validated)
-    {
-        // Guardar en base de datos como respaldo (opcional)
-        Log::warning('Email no pudo ser enviado, guardando registro para procesamiento posterior', [
-            'data' => $validated
+        $pendingJobs = \DB::table('jobs')->count();
+        $failedJobs = \DB::table('failed_jobs')->count();
+
+        return response()->json([
+            'pending_jobs' => $pendingJobs,
+            'failed_jobs' => $failedJobs
         ]);
-
-        // En lugar de fallar, informar al usuario que será procesado
-        return redirect()->route('quejas.index')->with('success', 
-            'Tu mensaje ha sido recibido y será procesado a la brevedad. Gracias por contactarnos.');
     }
 }

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 use App\Models\faculty;
 use App\Models\Municipality;
-use App\Models\Classroom;
+use App\Models\classroom;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\reservation_classroom;
@@ -16,7 +16,7 @@ class WelcomeController extends Controller
     {
         $faculties = faculty::withCount('classrooms')->get();
         $municipalities = Municipality::get();
-        $classrooms = Classroom::get();
+        $classrooms = classroom::get();
       
 
         // Fetch approved reservations with related models
