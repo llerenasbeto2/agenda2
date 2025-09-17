@@ -37,14 +37,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 COPY composer.json composer.lock ./
 COPY package*.json ./
 
-# Instalar dependencias PHP CON scripts (importante para Laravel 11)
-RUN composer install --no-dev --optimize-autoloader
+# Instalar dependencias PHP SIN scripts primero (porque artisan no existe todavía)
+RUN composer install --no-scripts --no-dev --optimize-autoloader
+
+# Copiar el resto del código (incluyendo artisan)
+COPY . .
 
 # Instalar dependencias Node.js si existen
 RUN if [ -f "package.json" ]; then npm install --omit=dev; fi
-
-# Copiar el resto del código
-COPY . .
 
 # Crear directorios necesarios y configurar permisos
 RUN mkdir -p /var/www/html/storage/logs \
@@ -56,7 +56,8 @@ RUN mkdir -p /var/www/html/storage/logs \
     && chmod -R 775 /var/www/html/storage \
     && chmod -R 775 /var/www/html/bootstrap/cache
 
-# Regenerar autoloader DESPUÉS de copiar todo
+# DESPUÉS de copiar todo, ejecutar scripts de Composer y regenerar autoloader
+RUN composer run-script post-autoload-dump --no-interaction || echo "Scripts omitidos"
 RUN composer dump-autoload --optimize
 
 # Configurar Apache
