@@ -2,11 +2,13 @@
 FROM php:8.2-apache
 
 # Force rebuild
-RUN echo "Railway Laravel Build v5 - Fixed Config"
+RUN echo "Railway Laravel Build v6 - Vite Assets Fix"
 
-# Instalar dependencias del sistema
+# Instalar dependencias del sistema (incluir Node.js LTS)
 RUN apt-get update && apt-get install -y \
     git curl libpng-dev libonig-dev libxml2-dev zip unzip \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -25,10 +27,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Copiar archivos y instalar dependencias
 COPY composer.json composer.lock ./
+COPY package*.json ./
 RUN composer install --no-scripts --no-dev --optimize-autoloader
 
 # Copiar resto del código
 COPY . .
+
+# Instalar dependencias de Node.js y compilar assets
+RUN npm install && npm run build
 
 # Ejecutar scripts de Composer y regenerar autoloader
 RUN composer run-script post-autoload-dump --no-interaction || echo "Scripts omitidos"
