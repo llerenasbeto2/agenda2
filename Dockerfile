@@ -2,7 +2,7 @@
 FROM php:8.2-apache
 
 # Force rebuild
-RUN echo "Railway Laravel Build v4 - Headers Module Fix"
+RUN echo "Railway Laravel Build v5 - Fixed Config"
 
 # Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
@@ -39,7 +39,7 @@ RUN mkdir -p storage/logs storage/framework/cache storage/framework/sessions sto
 RUN chown -R www-data:www-data /var/www/html
 RUN chmod -R 775 storage bootstrap/cache
 
-# Script de inicio que configura el puerto dinámicamente
+# Crear archivo de configuración de puertos dinámico
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
@@ -47,42 +47,71 @@ set -e\n\
 PORT=${PORT:-80}\n\
 echo "Configurando Apache para puerto: $PORT"\n\
 \n\
-# Actualizar configuración de Apache\n\
-sed -i "s/Listen 80/Listen $PORT/g" /etc/apache2/ports.conf\n\
+# Crear ports.conf desde cero para evitar problemas de sed\n\
+cat > /etc/apache2/ports.conf << EOF\n\
+# If you just change the port or add more ports here, you will likely also\n\
+# have to change the VirtualHost statement in\n\
+# /etc/apache2/sites-enabled/000-default.conf\n\
 \n\
-# Crear VirtualHost dinámico\n\
+Listen $PORT\n\
+\n\
+<IfModule ssl_module>\n\
+\tListen 443\n\
+</IfModule>\n\
+\n\
+<IfModule mod_gnutls.c>\n\
+\tListen 443\n\
+</IfModule>\n\
+EOF\n\
+\n\
+# Crear VirtualHost desde cero\n\
 cat > /etc/apache2/sites-available/000-default.conf << EOF\n\
 <VirtualHost *:$PORT>\n\
-    ServerName localhost\n\
-    DocumentRoot /var/www/html/public\n\
-    <Directory /var/www/html/public>\n\
-        AllowOverride All\n\
-        Require all granted\n\
-        DirectoryIndex index.php\n\
-    </Directory>\n\
-    ErrorLog \${APACHE_LOG_DIR}/error.log\n\
-    CustomLog \${APACHE_LOG_DIR}/access.log combined\n\
+\tServerName localhost\n\
+\tDocumentRoot /var/www/html/public\n\
+\t\n\
+\t<Directory /var/www/html/public>\n\
+\t\tAllowOverride All\n\
+\t\tRequire all granted\n\
+\t\tDirectoryIndex index.php\n\
+\t</Directory>\n\
+\t\n\
+\tErrorLog \\${APACHE_LOG_DIR}/error.log\n\
+\tCustomLog \\${APACHE_LOG_DIR}/access.log combined\n\
 </VirtualHost>\n\
 EOF\n\
 \n\
-# Configurar ServerName global para evitar warnings\n\
-echo \"ServerName localhost\" >> /etc/apache2/apache2.conf\n\
+# Configurar ServerName global\n\
+echo "ServerName localhost" >> /etc/apache2/apache2.conf\n\
 \n\
-# Configurar Laravel\n\
-[ ! -f .env ] && cp .env.example .env\n\
+# Configurar Laravel (solo una vez)\n\
+if [ ! -f .env ]; then\n\
+\tcp .env.example .env || echo "No se pudo crear .env"\n\
+fi\n\
+\n\
+# Configurar permisos\n\
 chown -R www-data:www-data storage bootstrap/cache\n\
 chmod -R 775 storage bootstrap/cache\n\
 \n\
-php artisan config:clear || true\n\
-php artisan route:clear || true\n\
-php artisan view:clear || true\n\
+# Limpiar cache Laravel\n\
+php artisan config:clear 2>/dev/null || true\n\
+php artisan route:clear 2>/dev/null || true\n\
+php artisan view:clear 2>/dev/null || true\n\
 \n\
-if ! grep -q "APP_KEY=base64:" .env; then\n\
-    php artisan key:generate --force\n\
+# Generar APP_KEY si no existe\n\
+if ! grep -q "APP_KEY=base64:" .env 2>/dev/null; then\n\
+\tphp artisan key:generate --force\n\
 fi\n\
 \n\
-php artisan config:cache || true\n\
-php artisan migrate --force || true\n\
+# Optimizar Laravel\n\
+php artisan config:cache 2>/dev/null || true\n\
+\n\
+# Ejecutar migraciones\n\
+php artisan migrate --force 2>/dev/null || echo "Migraciones omitidas"\n\
+\n\
+# Verificar configuración de Apache antes de iniciar\n\
+echo "Verificando configuración de Apache..."\n\
+apache2ctl configtest\n\
 \n\
 echo "Iniciando Apache en puerto $PORT"\n\
 exec apache2-foreground\n\
