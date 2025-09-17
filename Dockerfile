@@ -2,7 +2,7 @@
 FROM php:8.2-apache
 
 # Force rebuild
-RUN echo "Railway Laravel Build v3"
+RUN echo "Railway Laravel Build v4 - Headers Module Fix"
 
 # Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y \
 RUN echo 'memory_limit = 512M' >> /usr/local/etc/php/conf.d/php.ini
 RUN echo 'display_errors = On' >> /usr/local/etc/php/conf.d/php.ini
 
-# Habilitar mod_rewrite
-RUN a2enmod rewrite
+# Habilitar módulos de Apache necesarios para Laravel
+RUN a2enmod rewrite headers expires deflate
 
 # Configurar directorio de trabajo
 WORKDIR /var/www/html
@@ -64,6 +64,9 @@ cat > /etc/apache2/sites-available/000-default.conf << EOF\n\
     CustomLog \${APACHE_LOG_DIR}/access.log combined\n\
 </VirtualHost>\n\
 EOF\n\
+\n\
+# Configurar ServerName global para evitar warnings\n\
+echo \"ServerName localhost\" >> /etc/apache2/apache2.conf\n\
 \n\
 # Configurar Laravel\n\
 [ ! -f .env ] && cp .env.example .env\n\
