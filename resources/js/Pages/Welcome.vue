@@ -159,7 +159,7 @@ const closeModal = () => {
           </div>
 
           <!-- Columna Derecha: Filtros y Lista de Eventos -->
-          <div class="space-y-6" style="width: 700px; height: 300px;">
+          <div class="space-y-6" style="min-width: 700px; width: 100%; height: auto;">
             
             <!-- Filtros en la parte superior -->
             <EventFilters

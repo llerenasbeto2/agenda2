@@ -20,7 +20,11 @@ const props = defineProps({
 
 const searchQuery = ref('');
 const selectedMunicipality = ref('');
-const expandedFaculties = ref({});
+const showClassroomsList = ref(false);
+const showClassroomDetail = ref(false);
+const selectedFaculty = ref(null);
+const selectedClassroom = ref(null);
+
 const imageUrlForm = useForm({
     image_url: '',
 });
@@ -45,7 +49,6 @@ const allClassrooms = computed(() => {
     );
 });
 
-// Modificado: Solo busca por nombre de facultad
 const filteredClassrooms = computed(() => {
     return allClassrooms.value.filter(classroom => {
         const matchesSearch = !searchQuery.value || 
@@ -75,8 +78,27 @@ const filteredFaculties = computed(() => {
     return Object.values(grouped);
 });
 
-const toggleClassrooms = (facultyId) => {
-    expandedFaculties.value[facultyId] = !expandedFaculties.value[facultyId];
+const showClassrooms = (faculty) => {
+    selectedFaculty.value = faculty;
+    showClassroomsList.value = true;
+    showClassroomDetail.value = false;
+};
+
+const showClassroomDetails = (classroom) => {
+    selectedClassroom.value = classroom;
+    showClassroomDetail.value = true;
+};
+
+const closeModals = () => {
+    showClassroomsList.value = false;
+    showClassroomDetail.value = false;
+    selectedFaculty.value = null;
+    selectedClassroom.value = null;
+};
+
+const goBackToList = () => {
+    showClassroomDetail.value = false;
+    selectedClassroom.value = null;
 };
 
 const resetFilters = () => {
@@ -85,14 +107,14 @@ const resetFilters = () => {
 };
 
 const updateImageUrl = () => {
-    if (!imageUrlForm.image_url || !currentClassroom.value) return;
+    if (!imageUrlForm.image_url || !selectedClassroom.value) return;
     imageUrlForm.post(route('classrooms.image-url.update', {
-        classroom: currentClassroom.value.id,
+        classroom: selectedClassroom.value.id,
     }), {
         preserveScroll: true,
         onSuccess: () => {
             imageUrlForm.reset();
-            currentClassroom.value.image = imageUrlForm.image_url + (imageUrlForm.image_url.includes('?') ? '&' : '?') + 't=' + Date.now();
+            selectedClassroom.value.image = imageUrlForm.image_url + (imageUrlForm.image_url.includes('?') ? '&' : '?') + 't=' + Date.now();
         },
         onError: () => {
             alert('Error al actualizar la URL de la imagen');
@@ -187,38 +209,121 @@ const page = usePage();
 
                                     <button
                                         class="expand-btn"
-                                        @click="toggleClassrooms(faculty.id)"
+                                        @click="showClassrooms(faculty)"
                                     >
-                                        {{ expandedFaculties[faculty.id] ? 'Ocultar Aulas' : 'Ver Aulas' }}
+                                        Ver Aulas
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-                                    <div class="classrooms-section" :class="{ expanded: expandedFaculties[faculty.id] }">
-                                        <div class="classrooms-grid">
-                                            <div
-                                                v-for="classroom in faculty.classrooms"
-                                                :key="classroom.id"
-                                                class="classroom-card"
-                                            >
-                                                <div class="classroom-header">
-                                                    <div class="classroom-name">{{ classroom.name }}</div>
-                                                </div>
+        <!-- Modal de lista de aulas -->
+        <div v-if="showClassroomsList" class="modal-overlay" @click="closeModals">
+            <div class="modal-container classrooms-list-modal" @click.stop>
+                <div class="modal-header">
+                    <h3 class="modal-title">
+                        Aulas de {{ selectedFaculty?.name }}
+                    </h3>
+                    <button class="close-btn" @click="closeModals">
+                        ✕
+                    </button>
+                </div>
+                <div class="modal-content">
+                    <div class="classrooms-list">
+                        <div 
+                            v-for="classroom in selectedFaculty?.classrooms"
+                            :key="classroom.id"
+                            class="classroom-item"
+                            @click="showClassroomDetails(classroom)"
+                        >
+                            <div class="classroom-item-content">
+                                <div class="classroom-item-name">{{ classroom.name }}</div>
+                                <div class="classroom-item-info">
+                                    👥 {{ classroom.capacity }} personas
+                                </div>
+                            </div>
+                            <div class="classroom-arrow">→</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-                                                <div v-if="classroom.image" class="classroom-image">
-                                                    <img
-                                                        :src="classroom.image"
-                                                        alt="Classroom Image"
-                                                    />
-                                                </div>
+        <!-- Modal de detalle del aula -->
+        <div v-if="showClassroomDetail" class="modal-overlay" @click="closeModals">
+            <div class="modal-container classroom-detail-modal" @click.stop>
+                <div class="modal-header">
+                    <div class="header-navigation">
+                        <button class="back-btn" @click="goBackToList">
+                            ← Volver a la lista
+                        </button>
+                        <h3 class="modal-title">
+                            {{ selectedClassroom?.name }}
+                        </h3>
+                    </div>
+                    <button class="close-btn" @click="closeModals">
+                        ✕
+                    </button>
+                </div>
+                <div class="modal-content">
+                    <div class="classroom-detail">
+                        <div v-if="selectedClassroom?.image" class="classroom-detail-image">
+                            <img :src="selectedClassroom.image" alt="Classroom Image" />
+                        </div>
+                        
+                        <div class="classroom-detail-info">
+                            <div class="info-section">
+                                <h4 class="section-title">Información General</h4>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <span class="info-icon">👥</span>
+                                        <span class="info-label">Capacidad:</span>
+                                        <span class="info-value">{{ selectedClassroom?.capacity }} personas</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-icon">🏛️</span>
+                                        <span class="info-label">Facultad:</span>
+                                        <span class="info-value">{{ selectedClassroom?.faculty_name }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-icon">📍</span>
+                                        <span class="info-label">Ubicación:</span>
+                                        <span class="info-value">{{ selectedClassroom?.faculty_location }}</span>
+                                    </div>
+                                </div>
+                            </div>
 
-                                                <div class="classroom-details">
-                                                    <div>👥 Capacidad: {{ classroom.capacity }}</div>
-                                                    <div>📋 Servicios: {{ classroom.services }}</div>
-                                                    <div>👤 Responsable: {{ classroom.responsible }}</div>
-                                                    <div>📧 Email: {{ classroom.email }}</div>
-                                                    <div>📞 Teléfono: {{ classroom.phone }}</div>
-                                                </div>
-                                            </div>
-                                        </div>
+                            <div class="info-section">
+                                <h4 class="section-title">Contacto y Responsable</h4>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <span class="info-icon">👤</span>
+                                        <span class="info-label">Responsable:</span>
+                                        <span class="info-value">{{ selectedClassroom?.responsible }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-icon">📧</span>
+                                        <span class="info-label">Email:</span>
+                                        <span class="info-value">{{ selectedClassroom?.email }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-icon">📞</span>
+                                        <span class="info-label">Teléfono:</span>
+                                        <span class="info-value">{{ selectedClassroom?.phone }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="info-section">
+                                <h4 class="section-title">Servicios Disponibles</h4>
+                                <div class="services-container">
+                                    <div class="services-text">
+                                        <span class="info-icon">📋</span>
+                                        {{ selectedClassroom?.services }}
                                     </div>
                                 </div>
                             </div>
@@ -276,14 +381,12 @@ const page = usePage();
     box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
 }
 
-/* Estilo para las opciones del dropdown */
 .municipality-select option {
-    background-color: #1e293b; /* Fondo oscuro similar a tu diseño */
-    color: #ffffff; /* Texto blanco */
+    background-color: #1e293b;
+    color: #ffffff;
     padding: 10px;
 }
 
-/* Asegurar que el texto seleccionado también sea legible */
 .municipality-select optgroup {
     background-color: #1e293b;
     color: #ffffff;
@@ -433,59 +536,262 @@ const page = usePage();
     transform: scale(1.05);
 }
 
-.classrooms-section {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.5s ease;
-    margin-top: 20px;
-}
-
-.classrooms-section.expanded {
-    max-height: 2000px;
-}
-
-.classrooms-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    margin-top: 20px;
-}
-
-.classroom-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(100, 255, 218, 0.1);
-    border-radius: 15px;
+/* Estilos del Modal */
+/* 1. REDUCIR EL DIFUMINADO DEL FONDO - Cambia la opacidad de 0.95 a 0.8 o 0.85 */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(17, 24, 39, 0.8); /* CAMBIO: de 0.95 a 0.8 para menos difuminado */
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    z-index: 1000;
     padding: 20px;
 }
 
-.classroom-header {
+/* 2. FONDOS OSCUROS PARA LOS MODALES */
+.modal-container {
+    background: #1e293b; /* CAMBIO: fondo más oscuro (igual al contenido principal) */
+    border-radius: 20px;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(100, 255, 218, 0.2);
+    border: 1px solid rgba(100, 255, 218, 0.3);
+    max-height: 90vh;
+    overflow: hidden;
+    animation: slideInRight 0.3s ease-out;
+}
+
+.classrooms-list-modal {
+    width: 400px;
+    margin-right: 0;
+}
+
+.classroom-detail-modal {
+    width: 600px;
+    margin-right: 0;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(100, 255, 218, 0.2);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    background: rgba(30, 41, 59, 0.9); /* CAMBIO: fondo oscuro en lugar del celeste claro */
+    backdrop-filter: blur(10px);
 }
 
-.classroom-name {
+.header-navigation {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.modal-title {
+    font-size: 1.5rem;
     font-weight: bold;
-    color: #e0e6ed;
+    color: #64ffda;
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.classroom-image img {
-    width: 100%;
-    height: 150px;
-    object-fit: cover;
-    border-radius: 10px;
-    margin-bottom: 15px;
-}
-
-.classroom-details {
+.back-btn {
+    background: none;
+    border: none;
     color: #a8b2d1;
+    cursor: pointer;
     font-size: 0.9rem;
-    line-height: 1.6;
+    padding: 0;
+    transition: color 0.3s ease;
 }
 
-.classroom-details div {
+.back-btn:hover {
+    color: #64ffda;
+}
+
+.close-btn {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ff6b6b;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 10px;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+.close-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    transform: scale(1.05);
+}
+
+.modal-content {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(90vh - 80px);
+    background: #1e293b; /* CAMBIO: fondo oscuro para el contenido */
+    color: #e2e8f0; /* CAMBIO: texto claro */
+}
+
+/* Lista de Aulas */
+.classrooms-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.classroom-item {
+    background: rgba(30, 41, 59, 0.8); /* CAMBIO: fondo más oscuro */
+    border: 1px solid rgba(100, 255, 218, 0.2);
+    border-radius: 15px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.classroom-item:hover {
+    background: rgba(100, 255, 218, 0.15); /* CAMBIO: hover más sutil */
+    border-color: rgba(100, 255, 218, 0.4);
+    transform: translateX(5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.classroom-item-content {
+    flex: 1;
+    background: transparent; /* CAMBIO: quitar el fondo celeste */
+}
+
+.classroom-item-name {
+    font-weight: bold;
+    color: #f1f5f9; /* CAMBIO: texto más claro */
+    font-size: 1.1rem;
     margin-bottom: 5px;
+}
+
+.classroom-item-info {
+    color: #cbd5e1; /* CAMBIO: texto más claro */
+    font-size: 0.9rem;
+}
+
+.classroom-arrow {
+    color: #64ffda;
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+    font-weight: bold;
+}
+
+.classroom-item:hover .classroom-arrow {
+    transform: translateX(5px);
+}
+
+/* Detalle del Aula */
+.classroom-detail {
+    color: #e2e8f0; /* CAMBIO: texto más claro para mejor contraste */
+}
+
+.classroom-detail-image {
+    margin-bottom: 30px;
+}
+
+.classroom-detail-image img {
+    width: 100%;
+    height: 250px;
+    object-fit: cover;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.classroom-detail-info {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.info-section {
+    background: rgba(30, 41, 59, 0.6); /* CAMBIO: fondo más oscuro */
+    border-radius: 15px;
+    padding: 20px;
+    border: 1px solid rgba(100, 255, 218, 0.2);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+}
+.section-title {
+    color: #64ffda;
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+}
+
+.info-icon {
+    font-size: 1.2rem;
+    width: 25px;
+    text-align: center;
+}
+
+.info-label {
+    color: #a8b2d1;
+    font-weight: 600;
+    min-width: 100px;
+}
+
+.info-value {
+    color: #f1f5f9; /* CAMBIO: valores más claros */
+    font-weight: 500;
+}
+
+.services-container {
+    background: rgba(30, 41, 59, 0.8); /* CAMBIO: fondo más oscuro */
+    border-radius: 10px;
+    padding: 15px;
+    border: 1px solid rgba(100, 255, 218, 0.2);
+}
+
+.services-text {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: #f1f5f9; /* CAMBIO: texto más claro */
+    line-height: 1.6;
+    font-weight: 500;
 }
 
 @media (max-width: 768px) {
@@ -505,9 +811,22 @@ const page = usePage();
     .faculty-stats {
         gap: 20px;
     }
-    
-    .classrooms-grid {
-        grid-template-columns: 1fr;
+
+    .modal-overlay {
+        padding: 0;
+        justify-content: center;
+    }
+
+    .classrooms-list-modal,
+    .classroom-detail-modal {
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+        margin: 0;
+    }
+
+    .modal-content {
+        max-height: calc(100vh - 80px);
     }
 }
 </style>

@@ -770,7 +770,7 @@ onMounted(() => {
         hiddenDays: [0, 6],
         selectable: true,
         select: handleSelect,
-        height: 'auto',
+        height: 580, // Altura fija compacta
         initialDate: props.initialDate || new Date().toISOString().split('T')[0],
         events: [],
         eventClick: function(info) {
@@ -871,6 +871,205 @@ onUnmounted(() => {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Calendar Background - More vibrant gradient */
+:deep(.fc) {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); /* Softer indigo gradient */
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    height: 580px !important;
+}
+
+.dark :deep(.fc) {
+    background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%); /* Deep indigo for dark mode */
+    border: 1px solid rgba(129, 140, 248, 0.4);
+}
+
+/* Header - Bolder gradient */
+:deep(.fc-header-toolbar) {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); /* Vibrant indigo to purple */
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(99, 102, 241, 0.4);
+    margin-bottom: 0 !important;
+    min-height: 60px;
+}
+
+.dark :deep(.fc-header-toolbar) {
+    background: linear-gradient(135deg, #5b21b6 0%, #a855f7 100%); /* Purple gradient for dark mode */
+    border-bottom: 1px solid rgba(139, 92, 246, 0.5);
+}
+
+/* Toolbar Title - Brighter gradient */
+:deep(.fc-toolbar-title) {
+    font-size: 1.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #302f2f); /* text tittle */
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 16px;
+    letter-spacing: -0.025em;
+}
+
+.dark :deep(.fc-toolbar-title) {
+    background: linear-gradient(135deg, #22d3ee, #f472b6); /* Cyan to pink for dark mode */
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Buttons - More vibrant */
+:deep(.fc-button-primary) {
+    background: linear-gradient(135deg, #3b82f6, #ec4899) !important; /* Blue to pink */
+    border: none !important;
+    border-radius: 10px !important;
+    padding: 8px 16px !important;
+    font-weight: 600 !important;
+    font-size: 0.8rem !important;
+    text-transform: none !important;
+    box-shadow: 0 3px 8px rgba(59, 130, 246, 0.4) !important;
+    transition: all 0.2s ease-in-out !important;
+    height: 36px !important;
+}
+
+:deep(.fc-button-primary:hover) {
+    background: linear-gradient(135deg, #2563eb, #db2777) !important; /* Darker blue to pink */
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 12px rgba(59, 130, 246, 0.5) !important;
+}
+
+/* Time Grid - Subtle color */
+:deep(.fc-timegrid) {
+    background: rgba(224, 231, 255, 0.9); /* Light indigo tint */
+    backdrop-filter: blur(5px);
+    max-height: 500px !important;
+    overflow-y: auto !important;
+}
+
+.dark :deep(.fc-timegrid) {
+    background: rgba(55, 65, 81, 0.7); /* Darker slate with indigo hint */
+}
+
+/* cabecera del calendario donde se muestra de lunes a viernes*/
+:deep(.fc-col-header-cell) {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.2), rgba(139, 92, 246, 0.15)) !important;
+    border: none !important;
+    border-bottom: 2px solid rgba(99, 102, 241, 0.4) !important;
+    padding: 12px 8px !important;
+    height: 50px !important;
+    color: #4a4a4a !important; /* Darker text  */
+}
+
+.dark :deep(.fc-col-header-cell) {
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(6, 182, 212, 0.2)) !important;
+    border-bottom: 2px solid rgba(139, 92, 246, 0.5) !important;
+}
+
+/* Time Slots - Add subtle color */
+:deep(.fc-timegrid-slot) {
+    border-top: 1px solid rgba(99, 102, 241, 0.5) !important;
+    height: 40px !important;
+    background: rgba(238, 242, 255, 0.3); /* campo de selección horas y dias para reservar del calendario color */
+}
+
+.dark :deep(.fc-timegrid-slot) {
+    border-top: 1px solid rgba(129, 140, 248, 0.6) !important;
+    background: rgba(30, 41, 59, 0.4); /* Darker slate */
+}
+
+/* Time Slot Labels - Bolder es la parte donde de muestran las horas en el calendario*/
+:deep(.fc-timegrid-slot-label) {
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
+    color: #4f46e5 !important; /* Indigo */
+    padding: 6px 8px !important;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.1));
+    border-radius: 0 8px 8px 0;
+    border-right: 2px solid rgba(79, 70, 229, 0.4);
+    margin: 2px 0;
+}
+
+.dark :deep(.fc-timegrid-slot-label) {
+    color: #a5b4fc !important; /* Light indigo */
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(6, 182, 212, 0.2));
+    border-right: 2px solid rgba(139, 92, 246, 0.5);
+}
+
+/* My Reservations - Vibrant Green */
+:deep(.fc-event.my-reservation) {
+    background: linear-gradient(135deg, #10b981, #059669) !important; /* Emerald green */
+    border: none !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.5) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 2px 6px !important;
+    margin: 1px !important;
+    font-size: 0.75rem !important;
+}
+
+:deep(.fc-event.my-reservation:hover) {
+    background: linear-gradient(135deg, #059669, #047857) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.6) !important;
+}
+
+/* Existing Events - Striking Red */
+:deep(.fc-event.existing-event) {
+    background: linear-gradient(135deg, #ef4444, #b91c1c) !important; /* Red to deep red */
+    border: none !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.5) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 2px 6px !important;
+    margin: 1px !important;
+    font-size: 0.75rem !important;
+}
+
+:deep(.fc-event.existing-event:hover) {
+    background: linear-gradient(135deg, #dc2626, #991b1b) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.6) !important;
+}
+
+/* Current Time Indicator - More Prominent */
+:deep(.fc-timegrid-now-indicator-line) {
+    border-top: 3px solid #f97316 !important; /* Vibrant orange */
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(249, 115, 22, 0.6);
+}
+
+:deep(.fc-timegrid-now-indicator-arrow) {
+    border-top-color: #f97316 !important;
+    border-bottom-color: #f97316 !important;
+}
+
+/* Highlighted Selection - Bolder */
+:deep(.fc-highlight) {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(236, 72, 153, 0.2)) !important;
+    border: 2px dashed #3b82f6 !important;
+    border-radius: 8px !important;
+}
+
+.dark :deep(.fc-highlight) {
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(34, 211, 238, 0.25)) !important;
+    border: 2px dashed #a855f7 !important;
+}
+
+/* Scrollbars - Matching vibrant theme */
+:deep(.fc-scroller::-webkit-scrollbar-thumb) {
+    background: linear-gradient(135deg, #3b82f6, #ec4899);
+    border-radius: 3px;
+}
+
+:deep(.fc-scroller::-webkit-scrollbar-thumb:hover) {
+    background: linear-gradient(135deg, #2563eb, #db2777);
+}
 </style>
 
 <template>
@@ -943,7 +1142,9 @@ onUnmounted(() => {
 
     <!-- Columna derecha: Calendario -->
     <div class="w-3/4 dark:text-gray-400">
-      <div ref="calendarEl"></div>
+<div class="calendar-wrapper">
+  <div ref="calendarEl"></div>
+</div>
       
       <!-- Sección de Días a Solicitar -->
       <div class="mt-4">

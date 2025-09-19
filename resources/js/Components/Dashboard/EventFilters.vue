@@ -194,22 +194,33 @@ const resetAllFilters = () => {
   padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  /* Agregamos estas propiedades para asegurar que el contenido no se desborde */
+  overflow: visible; /* Permite que los dropdowns se muestren fuera del contenedor */
+  width: 100%;
+  box-sizing: border-box; /* Incluye padding y border en el ancho total */
 }
 
 .filters-row {
   display: flex;
-  gap: 5px;
+  gap: 8px;
   justify-content: center;
   align-items: center;
+  /* Flexbox responsivo */
+  flex-wrap: wrap;
+  width: 100%;
 }
 
 .filter-item {
   position: relative;
+  /* Aseguramos que cada item tenga un ancho flexible */
+  flex: 1;
+  min-width: 0; /* Permite que los elementos se encojan */
+  max-width: 180px; /* Limita el ancho máximo */
 }
 
 .filter-select {
   appearance: none;
-  padding: 5px 25px 5px 10px;
+  padding: 8px 30px 8px 12px;
   background: rgba(255, 255, 255, 0.1) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="white"><path d="M2 5l4 4 4-4H2z"/></svg>') no-repeat right 10px center;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 10px;
@@ -217,7 +228,16 @@ const resetAllFilters = () => {
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
-  min-width: 180px;
+  /* Modificamos el ancho para que sea completamente responsivo */
+  width: 100%;
+  box-sizing: border-box;
+  /* Removemos min-width fijo y lo hacemos más flexible */
+  min-width: 120px;
+  max-width: 100%;
+  /* Evitamos que el texto se desborde */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .filter-select:hover:not(:disabled) {
@@ -245,7 +265,7 @@ const resetAllFilters = () => {
 }
 
 .reset-button {
-  padding: 5px 15px;
+  padding: 8px 16px;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 10px;
@@ -254,6 +274,9 @@ const resetAllFilters = () => {
   cursor: pointer;
   transition: all 0.2s ease-in-out;
   white-space: nowrap;
+  /* Hacemos el botón más flexible */
+  flex-shrink: 0; /* Evita que el botón se encoja */
+  min-width: 80px;
 }
 
 .reset-button:hover:not(:disabled) {
@@ -275,37 +298,74 @@ const resetAllFilters = () => {
 }
 
 /* Responsive para pantallas pequeñas */
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
+  .filters-panel {
+    padding: 16px;
+  }
+  
   .filters-row {
-    justify-content: center;
     gap: 6px;
   }
   
+  .filter-item {
+    max-width: 160px;
+  }
+  
   .filter-select {
-    width: 160px;
+    min-width: 100px;
     font-size: 13px;
+    padding: 6px 25px 6px 10px;
   }
   
   .reset-button {
     font-size: 13px;
-    padding: 5px 12px;
+    padding: 6px 12px;
+    min-width: 70px;
   }
 }
 
 @media (max-width: 768px) {
+  .filters-panel {
+    padding: 12px;
+  }
+  
   .filters-row {
     flex-direction: column;
     gap: 10px;
+    align-items: stretch;
+  }
+  
+  .filter-item {
+    max-width: none;
+    width: 100%;
   }
   
   .filter-select {
-    width: 100%;
-    max-width: 280px;
+    min-width: auto;
+    max-width: none;
   }
   
   .reset-button {
     width: 100%;
-    max-width: 280px;
+    min-width: auto;
+  }
+}
+
+/* Media query adicional para pantallas muy pequeñas */
+@media (max-width: 480px) {
+  .filters-panel {
+    padding: 10px;
+    margin: 0 5px;
+  }
+  
+  .filter-select {
+    font-size: 12px;
+    padding: 5px 20px 5px 8px;
+  }
+  
+  .reset-button {
+    font-size: 12px;
+    padding: 5px 10px;
   }
 }
 </style>
