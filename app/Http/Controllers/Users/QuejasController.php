@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Users;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Auth;
-use App\Jobs\SendComplaintEmailJob;
 use Inertia\Inertia;
 
 class QuejasController extends Controller
@@ -30,20 +30,24 @@ class QuejasController extends Controller
         try {
             // Determinar el email según el estado de autenticación
             if (Auth::check()) {
+                // Usuario autenticado - usar su email
                 $userEmail = auth()->user()->email;
                 $validated['email'] = $userEmail;
             } else {
+                // Usuario no autenticado - usar email predeterminado
                 $validated['email'] = 'agendaudec@gmail.com';
             }
 
             $senderEmail = $validated['anonymous'] ? config('mail.from.address') : $validated['email'];
             $senderName = $validated['anonymous'] ? 'Anónimo' : ($validated['full_name'] ?: 'Usuario');
-            $recipientEmail = 'agendaudec@gmail.com';
+            $recipientEmail = 'agendaudec@gmail.com'; // Siempre enviar a este destinatario
 
-            Log::info('Preparando email para cola', [
+            Log::info('Intentando enviar correo de queja/sugerencia', [
                 'to' => $recipientEmail,
+                'from' => config('mail.from.address'),
                 'replyTo' => $senderEmail,
                 'category' => $validated['category'],
+                'message' => $validated['message'],
                 'authenticated' => Auth::check(),
             ]);
 
@@ -56,53 +60,24 @@ class QuejasController extends Controller
             $messageContent .= "Email: {$validated['email']}\n\n";
             $messageContent .= "Mensaje: {$validated['message']}";
 
-            // Preparar datos para el Job
-            $emailData = [
-                'content' => $messageContent,
-                'recipient' => $recipientEmail,
-                'replyTo' => $senderEmail,
-                'senderName' => $senderName,
-                'subject' => "Nueva {$validated['category']}"
-            ];
+            // Envío de correo con Mail::raw
+            Mail::raw($messageContent, function ($message) use ($senderEmail, $senderName, $validated, $recipientEmail) {
+                $message->to($recipientEmail)
+                        ->from(config('mail.from.address'), config('mail.from.name'))
+                        ->replyTo($senderEmail, $senderName)
+                        ->subject("Nueva {$validated['category']}");
+            });
 
-            // Despachar el job a la cola
-            SendComplaintEmailJob::dispatch($emailData);
-
-            Log::info('Email agregado a la cola exitosamente', [
-                'recipient' => $recipientEmail,
-                'subject' => $emailData['subject']
-            ]);
-
-            return redirect()->route('quejas.index')->with('success', 
-                'Tu mensaje ha sido recibido y será procesado en breve. Gracias por contactarnos.');
-
+            Log::info('Correo enviado exitosamente');
+            return redirect()->route('quejas.index')->with('success', 'Queja/Sugerencia enviada correctamente');
         } catch (\Exception $e) {
-            Log::error('Error al procesar queja/sugerencia', [
+            Log::error('Error al enviar queja/sugerencia', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
-            return redirect()->back()->withErrors([
-                'error' => 'Ocurrió un error al procesar tu mensaje. Por favor intenta nuevamente.'
-            ]);
+            return redirect()->back()->withErrors(['error' => 'Error al enviar: ' . $e->getMessage()]);
         }
-    }
-
-    // Método adicional para revisar el estado de la cola (opcional)
-    public function queueStatus()
-    {
-        if (!Auth::check() || !auth()->user()->hasRole('admin')) {
-            abort(403);
-        }
-
-        $pendingJobs = \DB::table('jobs')->count();
-        $failedJobs = \DB::table('failed_jobs')->count();
-
-        return response()->json([
-            'pending_jobs' => $pendingJobs,
-            'failed_jobs' => $failedJobs
-        ]);
     }
 }

@@ -45,67 +45,80 @@ watch(() => filters.value.name, (newValue) => {
 </script>
 
 <template>
-  <Head title="Usuarios" />
-  <AdminGeneralLayout>
-    <div class="container mx-auto py-8">
-      <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Usuarios</h1>
-        
-        <form @submit.prevent="search" class="flex items-center space-x-2">
-          <input 
-            v-model="filters.name" 
-            name="name"
-            placeholder="Buscar por nombre" 
-            type="text"
-            class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-          />
-          <button 
-            type="submit" 
-            class="bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md transition"
-          >
-            Buscar
-          </button>
-        </form>
-      </div>
+    <Head title="Usuarios" />
 
-      <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-          <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead class="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nombre</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Rol</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Responsable</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Opciones</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-200">{{ user.name }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-200">{{ user.email }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-200">{{ user.rol ? user.rol.name : 'Sin rol' }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-200">
-                  <span v-if="user.rol && user.responsible_id">
-                    <span v-if="user.rol.name === 'Administrador estatal'">{{ user.responsibleFaculty ? user.responsibleFaculty.name : 'Facultad no encontrada' }}</span>
-                    <span v-else-if="user.rol.name === 'Administrador area'">{{ user.responsibleClassroom ? user.responsibleClassroom.name : 'Aula no encontrada' }}</span>
-                    <span v-else>-</span>
-                  </span>
-                  <span v-else>-</span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap flex space-x-2">
-                  <Link :href="route('admin.general.usuarios.edit', user.id)" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">
-                    Editar
-                  </Link>
-                  <button @click="destroy(user.id)" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+    <AdminGeneralLayout>
+        <template #header>
+            <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
+                Usuarios
+            </h2>
+        </template>
+       
+        <div class="py-12">
+            <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
+                    <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                        <div class="flex justify-between items-center mb-4">
+                            
+                            
+                            <!-- Buscador -->
+                            <div class="flex items-center">
+                                <form @submit.prevent="search" class="flex items-center space-x-2">
+                                    <input 
+                                        v-model="filters.name" 
+                                        name="name"
+                                        placeholder="Buscar por nombre" 
+                                        type="text"
+                                        class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                                    />
+                                    <button 
+                                        type="submit" 
+                                        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition"
+                                    >
+                                        Buscar
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <table class="min-w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden mt-4">
+                            <thead>
+                                <tr class="bg-gray-100 dark:bg-gray-600 border-b dark:border-gray-500">
+                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Nombre</th>
+                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Email</th>
+                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Rol</th>
+                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Responsable</th>
+                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="user in users" :key="user.id" class="border-b dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                    <td class="py-2 px-4 text-gray-800 dark:text-gray-200">{{ user.name }}</td>
+                                    <td class="py-2 px-4 text-gray-800 dark:text-gray-200">{{ user.email }}</td>
+                                    <td class="py-2 px-4 text-gray-800 dark:text-gray-200">{{ user.rol ? user.rol.name : 'Sin rol' }}</td>
+                                    <td class="py-2 px-4 text-gray-800 dark:text-gray-200">
+                                        <span v-if="user.rol && user.responsible_id">
+                                            <span v-if="user.rol.name === 'Administrador estatal'">{{ user.responsibleFaculty ? user.responsibleFaculty.name : 'Facultad no encontrada' }}</span>
+                                            <span v-else-if="user.rol.name === 'Administrador area'">{{ user.responsibleClassroom ? user.responsibleClassroom.name : 'Aula no encontrada' }}</span>
+                                            <span v-else>-</span>
+                                        </span>
+                                        <span v-else>-</span>
+                                    </td>
+                                    <td class="py-2 px-4 flex gap-2">
+                                        <Link :href="route('admin.general.usuarios.edit', user.id)" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded">Editar</Link>
+                                        <button @click="destroy(user.id)" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded">Eliminar</button>
+                                    </td>
+                                </tr>
+                                <tr v-if="users.length === 0" class="border-b dark:border-gray-600">
+                                    <td colspan="5" class="py-4 px-4 text-center text-gray-800 dark:text-gray-200">
+                                        No hay usuarios para mostrar
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  </AdminGeneralLayout>
+    </AdminGeneralLayout>
 </template>
