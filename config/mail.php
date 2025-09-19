@@ -11,31 +11,39 @@ return [
             'encryption' => env('MAIL_ENCRYPTION', 'tls'),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => 20, // Timeout de 20 segundos
-            'auth_mode' => null,
+            'timeout' => 60, // Aumentar timeout
+            'local_domain' => env('MAIL_EHLO_DOMAIN'),
+            // Opciones adicionales para mejor compatibilidad
             'stream' => [
                 'ssl' => [
-                    'allow_self_signed' => true,
                     'verify_peer' => false,
                     'verify_peer_name' => false,
+                    'allow_self_signed' => true,
                 ],
             ],
         ],
-        
-        // Configuración alternativa para Railway
-        'railway_smtp' => [
-            'transport' => 'smtp',
-            'host' => env('MAIL_HOST', 'smtp.gmail.com'),
-            'port' => env('MAIL_PORT', 25), // Puerto alternativo
-            'encryption' => null,
-            'username' => env('MAIL_USERNAME'),
-            'password' => env('MAIL_PASSWORD'),
-            'timeout' => 15,
+
+        // Configuración para Resend (si decides usarlo)
+        'resend' => [
+            'transport' => 'resend',
+        ],
+
+        // Configuración para Mailgun (si decides usarlo)
+        'mailgun' => [
+            'transport' => 'mailgun',
         ],
     ],
 
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', 'Example'),
+    ],
+
+    // Configuraciones adicionales
+    'markdown' => [
+        'theme' => 'default',
+        'paths' => [
+            resource_path('views/vendor/mail'),
+        ],
     ],
 ];
