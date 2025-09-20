@@ -8,7 +8,8 @@ const props = defineProps({
   faculties: Array,
   classrooms: Array,
   categorie: Array,
-  municipalities: Array
+  municipalities: Array,
+  reservations: Array
 });
 
 const emit = defineEmits(['close']);
@@ -19,13 +20,14 @@ onMounted(() => {
   console.log('Prop Classrooms:', JSON.stringify(props.classrooms, null, 2));
   console.log('Prop Municipalities:', JSON.stringify(props.municipalities, null, 2));
   console.log('Prop Reservation:', JSON.stringify(props.reservation, null, 2));
+  console.log('Prop Reservations:', JSON.stringify(props.reservations, null, 2));
 });
 
 // Format ISO date for datetime-local input without timezone conversion
 const formatDateTimeForInput = (dateTime) => {
   if (!dateTime) return '';
   try {
-    return dateTime.slice(0, 16); // e.g., "2025-06-10T09:00"
+    return dateTime.slice(0, 16);
   } catch (error) {
     console.error('Error formatting date:', dateTime, error);
     return '';
@@ -40,9 +42,13 @@ const timeOptions = ref([
   '19:00', '19:30', '20:00'
 ]);
 
-// Estados
+// Estados - ESTAS SON VARIABLES LOCALES, NO SE SINCRONIZAN AUTOMÁTICAMENTE
 const irregularDates = ref([]);
 const newIrregularDate = ref({ date: '', startTime: '', endTime: '' });
+
+// Sistema de conflictos
+const conflicts = ref([]);
+const showConflicts = ref(false);
 
 // Estados para visualización de fechas
 const displayStartDateTime = ref('');
@@ -70,15 +76,43 @@ const form = useForm({
 // Estado para controlar el proceso de guardado
 const isSubmitting = ref(false);
 
+// Limpiar conflictos
+const clearConflicts = () => {
+  conflicts.value = [];
+  showConflicts.value = false;
+};
+
+// Agregar conflicto
+const addConflict = (conflict) => {
+  // Verificar si ya existe el mismo conflicto
+  const existingConflict = conflicts.value.find(c => 
+    c.event_title === conflict.event_title && 
+    c.date === conflict.date && 
+    c.startTime === conflict.startTime && 
+    c.endTime === conflict.endTime
+  );
+  
+  if (!existingConflict) {
+    conflicts.value.push(conflict);
+    showConflicts.value = true;
+  }
+};
+
 // Inicializar valores de visualización y resetear formulario
 const resetToOriginal = () => {
   displayStartDateTime.value = formatDateTimeForInput(props.reservation?.start_datetime);
   displayEndDateTime.value = formatDateTimeForInput(props.reservation?.end_datetime);
+  
+  // Inicializar irregularDates desde los datos originales
   irregularDates.value = props.reservation?.irregular_dates
     ? Array.isArray(props.reservation.irregular_dates)
-      ? props.reservation.irregular_dates
+      ? [...props.reservation.irregular_dates] // Crear una copia
       : JSON.parse(props.reservation.irregular_dates || '[]')
     : [];
+  
+  // Limpiar conflictos
+  clearConflicts();
+  
   form.reset();
   form.clearErrors();
   isSubmitting.value = false;
@@ -86,26 +120,27 @@ const resetToOriginal = () => {
 
 onMounted(resetToOriginal);
 
-// Sincronizar form solo cuando el usuario cambia los inputs
+// WATCHERS SOLO PARA displayStartDateTime Y displayEndDateTime
+// NO para irregularDates - esto evita el auto-guardado
 watch(displayStartDateTime, (newValue) => {
   if (newValue && newValue !== formatDateTimeForInput(props.reservation?.start_datetime)) {
     form.start_datetime = `${newValue}:00Z`;
   }
 });
+
 watch(displayEndDateTime, (newValue) => {
   if (newValue && newValue !== formatDateTimeForInput(props.reservation?.end_datetime)) {
     form.end_datetime = `${newValue}:00Z`;
   }
 });
 
-// Watch irregularDates to update displayText reactively
-watch(irregularDates, (newDates) => {
-  newDates.forEach((date) => {
-    if (date.date && date.startTime && date.endTime) {
-      date.displayText = `${date.date} ${date.startTime} - ${date.endTime}`;
-    }
-  });
-}, { deep: true });
+// ELIMINADO: El watch para irregularDates que causaba el auto-guardado
+// Solo actualizamos displayText cuando sea necesario, sin watchers automáticos
+const updateDisplayText = (dateObj) => {
+  if (dateObj.date && dateObj.startTime && dateObj.endTime) {
+    dateObj.displayText = `${dateObj.date} ${dateObj.startTime} - ${dateObj.endTime}`;
+  }
+};
 
 // Filtrar facultades según el municipio seleccionado
 const filteredFaculties = computed(() => {
@@ -158,33 +193,113 @@ watch(() => form.faculty_id, (newFacultyId) => {
   form.classroom_id = '';
 });
 
-// Agregar fecha irregular
+// Función para verificar conflictos en irregular_dates de otras reservaciones aprobadas
+const checkIrregularDateConflicts = (newDateObj) => {
+  const newStart = new Date(`${newDateObj.date}T${newDateObj.startTime}:00`);
+  const newEnd = new Date(`${newDateObj.date}T${newDateObj.endTime}:00`);
+  const foundConflicts = [];
+
+  props.reservations.forEach(res => {
+    // Excluir la reservación actual
+    if (res.id === props.reservation?.id) return;
+    
+    // Filtrar por faculty_id, classroom_id y status 'Aprobado'
+    if (parseInt(res.faculty_id) !== parseInt(form.faculty_id)) return;
+    if (parseInt(res.classroom_id) !== parseInt(form.classroom_id)) return;
+    if (res.status !== 'Aprobado') return;
+
+    // Parsear irregular_dates si existe
+    let irreg = res.irregular_dates;
+    if (typeof irreg === 'string') {
+      try {
+        irreg = JSON.parse(irreg);
+      } catch (e) {
+        console.error('Error parsing irregular_dates:', irreg);
+        return;
+      }
+    }
+    if (!Array.isArray(irreg) || irreg.length === 0) return;
+
+    // Verificar coincidencia de fecha y solapamiento de horas
+    irreg.forEach(d => {
+      if (d.date !== newDateObj.date) return;
+      
+      const dStart = new Date(`${d.date}T${d.startTime}:00`);
+      const dEnd = new Date(`${d.date}T${d.endTime}:00`);
+
+      // Solapamiento: si newStart < dEnd y newEnd > dStart
+      if (newStart < dEnd && newEnd > dStart) {
+        foundConflicts.push({
+          event_title: res.event_title,
+          date: d.date,
+          startTime: d.startTime,
+          endTime: d.endTime,
+          newDate: newDateObj.date,
+          newStartTime: newDateObj.startTime,
+          newEndTime: newDateObj.endTime
+        });
+      }
+    });
+  });
+
+  return foundConflicts;
+};
+
+// Agregar fecha irregular - SOLO MODIFICA EL ARRAY LOCAL
 const addIrregularDate = () => {
   if (newIrregularDate.value.date && newIrregularDate.value.startTime && newIrregularDate.value.endTime) {
-    irregularDates.value.push({
+    const newDateObj = {
       date: newIrregularDate.value.date,
       startTime: newIrregularDate.value.startTime,
-      endTime: newIrregularDate.value.endTime,
-      displayText: `${newIrregularDate.value.date} ${newIrregularDate.value.startTime} - ${newIrregularDate.value.endTime}`
-    });
+      endTime: newIrregularDate.value.endTime
+    };
+
+    // Actualizar displayText manualmente
+    updateDisplayText(newDateObj);
+
+    // Verificar conflictos
+    const foundConflicts = checkIrregularDateConflicts(newDateObj);
+    if (foundConflicts.length > 0) {
+      // Agregar conflictos encontrados al área de notificaciones
+      foundConflicts.forEach(conflict => {
+        addConflict(conflict);
+      });
+    }
+
+    // SOLO agregar al array local - NO actualizar el formulario automáticamente
+    irregularDates.value.push(newDateObj);
     newIrregularDate.value = { date: '', startTime: '', endTime: '' };
+    
+    console.log('Fecha agregada al array local (no guardada aún):', newDateObj);
   }
 };
 
-// Eliminar fecha irregular
+// Eliminar fecha irregular - SOLO MODIFICA EL ARRAY LOCAL
 const removeIrregularDate = (index) => {
+  const removedDate = irregularDates.value[index];
   irregularDates.value.splice(index, 1);
-  console.log('After removal, irregularDates:', JSON.stringify(irregularDates.value, null, 2));
+  
+  // Remover conflictos relacionados con esta fecha
+  conflicts.value = conflicts.value.filter(conflict => 
+    !(conflict.newDate === removedDate.date && 
+      conflict.newStartTime === removedDate.startTime && 
+      conflict.newEndTime === removedDate.endTime)
+  );
+  
+  // Ocultar el área de conflictos si no hay más conflictos
+  if (conflicts.value.length === 0) {
+    showConflicts.value = false;
+  }
+  
+  console.log('Fecha eliminada del array local (no guardada aún). Array actual:', JSON.stringify(irregularDates.value, null, 2));
 };
 
-// Preparar datos para envío
-// Preparar datos para envío - VERSION CORREGIDA
+// Preparar datos para envío - AQUÍ SE SINCRONIZA CON EL FORMULARIO
 const prepareSubmit = () => {
-  // Manejar fechas irregulares
+  // SOLO AQUÍ se actualiza el formulario con las fechas irregulares
   form.irregular_dates = irregularDates.value.length > 0 ? JSON.stringify(irregularDates.value) : null;
-  console.log('Prepared irregular_dates:', form.irregular_dates);
+  console.log('Prepared irregular_dates for submission:', form.irregular_dates);
   
-  // Solo actualizar las fechas si realmente han cambiado
   if (displayStartDateTime.value && displayStartDateTime.value !== formatDateTimeForInput(props.reservation?.start_datetime)) {
     form.start_datetime = `${displayStartDateTime.value}:00`;
   } else if (displayStartDateTime.value === '') {
@@ -197,7 +312,6 @@ const prepareSubmit = () => {
     form.end_datetime = null;
   }
   
-  // Asegurar que los campos vacíos se conviertan a null
   Object.keys(form.data()).forEach(key => {
     if (form[key] === '' && key !== 'status') {
       form[key] = null;
@@ -212,9 +326,11 @@ const submit = () => {
     return;
   }
   
-  if (isSubmitting.value) return; // Evita múltiples envíos
+  if (isSubmitting.value) return;
   
   isSubmitting.value = true;
+  
+  // Preparar datos justo antes del envío
   prepareSubmit();
   
   const formData = new FormData();
@@ -229,7 +345,7 @@ const submit = () => {
     preserveState: true,
     preserveScroll: true,
     onSuccess: () => {
-      console.log('Form submitted successfully, irregular_dates:', form.irregular_dates);
+      console.log('Form submitted successfully');
       displayStartDateTime.value = formatDateTimeForInput(form.start_datetime);
       displayEndDateTime.value = formatDateTimeForInput(form.end_datetime);
       isSubmitting.value = false;
@@ -247,16 +363,15 @@ const submit = () => {
   });
 };
 
-// Cerrar modal y cancelar operación - CORREGIDO
+// Cerrar modal y cancelar operación
 const close = () => {
-  // Si hay una operación en curso, cancelarla
   if (isSubmitting.value) {
-    form.cancel(); // Cancela la solicitud HTTP activa
+    form.cancel();
     console.log('Operación de guardado cancelada');
   }
   
-  // Resetear estado
   isSubmitting.value = false;
+  // Resetear todo a los valores originales (incluyendo irregularDates)
   resetToOriginal();
   emit('close');
 };
@@ -378,6 +493,64 @@ const close = () => {
               </div>
             </div>
 
+            <!-- Área de conflictos -->
+            <div v-if="showConflicts" class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <div class="flex items-start">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                  <h3 class="text-sm font-medium text-red-800 dark:text-red-400">
+                    Conflictos de Horario Detectados
+                  </h3>
+                  <div class="mt-2 text-sm text-red-700 dark:text-red-300">
+                    <p class="mb-2">Las siguientes fechas y horarios coinciden con reservaciones ya aprobadas:</p>
+                    <ul class="space-y-2">
+                      <li v-for="(conflict, index) in conflicts" :key="index" class="bg-white dark:bg-gray-800 p-3 rounded border-l-4 border-red-400">
+                        <div class="flex justify-between items-start">
+                          <div class="flex-1">
+                            <p class="font-semibold text-gray-900 dark:text-gray-100">
+                              {{ conflict.event_title }}
+                            </p>
+                            <p class="text-gray-600 dark:text-gray-400">
+                              <strong>Fecha:</strong> {{ conflict.date }}
+                            </p>
+                            <p class="text-gray-600 dark:text-gray-400">
+                              <strong>Horario ocupado:</strong> {{ conflict.startTime }} - {{ conflict.endTime }}
+                            </p>
+                            <p class="text-red-600 dark:text-red-400">
+                              <strong>Nueva fecha solicitada:</strong> {{ conflict.newStartTime }} - {{ conflict.newEndTime }}
+                            </p>
+                          </div>
+                          <button 
+                            type="button" 
+                            @click="conflicts.splice(index, 1); if (conflicts.length === 0) showConflicts = false"
+                            class="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            title="Descartar este conflicto"
+                          >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </li>
+                    </ul>
+                  </div>
+                  <div class="mt-3">
+                    <button 
+                      type="button" 
+                      @click="clearConflicts" 
+                      class="text-sm bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 px-3 py-1 rounded hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                    >
+                      Limpiar todos los conflictos
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Opciones de recurrencia -->
             <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <h3 class="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-200 border-b pb-2">Opciones de Recurrencia</h3>
@@ -412,16 +585,12 @@ const close = () => {
                             <input type="date" v-model="date.date" class="bg-transparent border-b border-gray-300 dark:border-gray-500 focus:border-blue-500" />
                           </td>
                           <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
-                            <select v-model="date.startTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm 
-           focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 
-           dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <select v-model="date.startTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                               <option v-for="time in timeOptions" :key="time" :value="time">{{ time }}</option>
                             </select>
                           </td>
                           <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
-                            <select v-model="date.endTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm 
-           focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 
-           dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <select v-model="date.endTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                               <option v-for="time in timeOptions" :key="time" :value="time">{{ time }}</option>
                             </select>
                           </td>

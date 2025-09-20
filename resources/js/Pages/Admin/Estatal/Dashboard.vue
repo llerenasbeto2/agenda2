@@ -106,28 +106,8 @@ const openPaymentModal = (reserva) => {
   showPaymentModal.value = true;
 };
 
-const closePaymentModal = () => {
-    showPaymentModal.value = false;
-
-};
-
-
-const handlePaymentUpdate = async (updatedData) => {
-    try {
-        // Actualizar los datos localmente
-        if (selectedReservation.value) {
-            selectedReservation.value.cost = updatedData.cost;
-            selectedReservation.value.is_paid = updatedData.is_paid;
-            selectedReservation.value.payment_date = updatedData.payment_date;
-        }
-        
-        // Opcional: Recargar todos los datos para asegurar consistencia
-        // await fetchReservations(); // Si tienes una función para recargar datos
-        
-        console.log('Datos de pago actualizados:', updatedData);
-    } catch (error) {
-        console.error('Error al actualizar los datos localmente:', error);
-    }
+const handlePaymentUpdate = (paymentData) => {
+  console.log('Detalles de pago actualizados:', paymentData);
 };
 
 const openIngresosModal = () => {
@@ -416,13 +396,11 @@ const eliminarReservacion = (id) => {
       @close="showcommentModal = false"
       @send-comment="handleCommentSent"
     />
-
     <PaymentDetails
       v-if="selectedReservation"
       :show="showPaymentModal"
       :reservation-id="selectedReservation.id"
-      :existing-data="selectedReservation" 
-      @close="closePaymentModal"
+      @close="showPaymentModal = false"
       @update-payment="handlePaymentUpdate"
     />
     <EditReservationModal
@@ -434,6 +412,7 @@ const eliminarReservacion = (id) => {
       :categorie="props.categorie"
       :municipalities="props.municipalities"
       :responsibleId="props.auth.user.responsible"
+      :reservations="props.reservaciones"
       @close="closeEditModal"
     />
     <DeleteReservationModal

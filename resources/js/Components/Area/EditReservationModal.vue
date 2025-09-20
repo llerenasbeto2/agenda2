@@ -8,7 +8,8 @@ const props = defineProps({
     faculties: Array,
     classrooms: Array,
     categorie: Array,
-    municipalities: Array
+    municipalities: Array,
+    reservations: Array
 });
 
 const emit = defineEmits(['close']);
@@ -22,11 +23,25 @@ const formatDateTimeForInput = (dateTime) => {
     return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
 };
 
-// Estados
-// const showRecurringOptions = ref(false);
-// const selectedDays = ref([]);
+// Time options for 30-minute intervals from 7:00 AM to 8:00 PM
+const timeOptions = ref([
+  '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+  '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30',
+  '19:00', '19:30', '20:00'
+]);
+
+// Estados - ESTAS SON VARIABLES LOCALES, NO SE SINCRONIZAN AUTOMÁTICAMENTE
 const irregularDates = ref([]);
 const newIrregularDate = ref({ date: '', startTime: '', endTime: '' });
+
+// Sistema de conflictos
+const conflicts = ref([]);
+const showConflicts = ref(false);
+
+// Estados para visualización de fechas
+const displayStartDateTime = ref('');
+const displayEndDateTime = ref('');
 
 // Inicializar formulario con datos de la reservación
 const form = useForm({
@@ -40,99 +55,267 @@ const form = useForm({
     event_title: props.reservation?.event_title || '',
     category_type: props.reservation?.category_type || '',
     attendees: props.reservation?.attendees || '',
-    start_datetime: props.reservation?.start_datetime ? formatDateTimeForInput(props.reservation.start_datetime) : '',
-    end_datetime: props.reservation?.end_datetime ? formatDateTimeForInput(props.reservation.end_datetime) : '',
+    start_datetime: props.reservation?.start_datetime || '',
+    end_datetime: props.reservation?.end_datetime || '',
     requirements: props.reservation?.requirements || '',
     status: props.reservation?.status || 'Pendiente',
-    // is_recurring: props.reservation?.is_recurring || false,
-    // repeticion: props.reservation?.repeticion || 1,
-    // recurring_frequency: props.reservation?.recurring_frequency || 'weekly',
-    // recurring_days: props.reservation?.recurring_days || '',
-    // recurring_end_date: props.reservation?.recurring_end_date ? formatDateTimeForInput(props.reservation.recurring_end_date) : '',
     irregular_dates: props.reservation?.irregular_dates || ''
 });
 
-// Mostrar/ocultar opciones recurrentes (eliminado)
-// const toggleRecurringOptions = () => {
-//     showRecurringOptions.value = form.is_recurring;
-//     if (!form.is_recurring) {
-//         form.repeticion = 1;
-//         form.recurring_frequency = 'weekly';
-//         form.recurring_days = '';
-//         form.recurring_end_date = '';
-//         form.irregular_dates = '';
-//         selectedDays.value = [];
-//         irregularDates.value = [];
-//     }
-// };
+// Estado para controlar el proceso de guardado
+const isSubmitting = ref(false);
 
-// Actualizar días recurrentes (eliminado)
-// const updateRecurringDays = () => {
-//     form.recurring_days = JSON.stringify(selectedDays.value);
-// };
-
-// Agregar fecha irregular
-const addIrregularDate = () => {
-    if (newIrregularDate.value.date && newIrregularDate.value.startTime && newIrregularDate.value.endTime) {
-        irregularDates.value.push({
-            date: newIrregularDate.value.date,
-            startTime: newIrregularDate.value.startTime,
-            endTime: newIrregularDate.value.endTime,
-            displayText: `${newIrregularDate.value.date} ${newIrregularDate.value.startTime} - ${newIrregularDate.value.endTime}`
-        });
-        newIrregularDate.value = { date: '', startTime: '', endTime: '' };
-    }
+// Limpiar conflictos
+const clearConflicts = () => {
+  conflicts.value = [];
+  showConflicts.value = false;
 };
 
-// Eliminar fecha irregular
-const removeIrregularDate = (index) => {
-    irregularDates.value.splice(index, 1);
+// Agregar conflicto
+const addConflict = (conflict) => {
+  // Verificar si ya existe el mismo conflicto
+  const existingConflict = conflicts.value.find(c => 
+    c.event_title === conflict.event_title && 
+    c.date === conflict.date && 
+    c.startTime === conflict.startTime && 
+    c.endTime === conflict.endTime
+  );
+  
+  if (!existingConflict) {
+    conflicts.value.push(conflict);
+    showConflicts.value = true;
+  }
+};
+
+// Inicializar valores de visualización y resetear formulario
+const resetToOriginal = () => {
+  displayStartDateTime.value = formatDateTimeForInput(props.reservation?.start_datetime);
+  displayEndDateTime.value = formatDateTimeForInput(props.reservation?.end_datetime);
+  
+  // Inicializar irregularDates desde los datos originales
+  if (props.reservation && props.reservation.irregular_dates) {
+    irregularDates.value = Array.isArray(props.reservation.irregular_dates)
+      ? [...props.reservation.irregular_dates] // Crear una copia
+      : JSON.parse(props.reservation.irregular_dates || '[]');
+  } else {
+    irregularDates.value = [];
+  }
+  
+  // Limpiar conflictos
+  clearConflicts();
+  
+  isSubmitting.value = false;
 };
 
 // Cargar datos al montar
 onMounted(() => {
-    if (props.reservation) {
-        // Cargar fechas irregulares
-        if (props.reservation.irregular_dates) {
-            irregularDates.value = Array.isArray(props.reservation.irregular_dates)
-                ? props.reservation.irregular_dates
-                : JSON.parse(props.reservation.irregular_dates || '[]');
-        }
-    }
+  resetToOriginal();
 });
 
-// Observar cambios en selectedDays (eliminado)
-// watch(selectedDays, () => {
-//     updateRecurringDays();
-// });
+// Sincronizar form solo cuando el usuario cambia los inputs - NO para irregularDates
+watch(displayStartDateTime, (newValue) => {
+  if (newValue && newValue !== formatDateTimeForInput(props.reservation?.start_datetime)) {
+    form.start_datetime = newValue;
+  }
+});
 
-// Preparar datos para envío
+watch(displayEndDateTime, (newValue) => {
+  if (newValue && newValue !== formatDateTimeForInput(props.reservation?.end_datetime)) {
+    form.end_datetime = newValue;
+  }
+});
+
+// ELIMINADO: El watch para irregularDates que causaba el auto-guardado
+// Solo actualizamos displayText cuando sea necesario, sin watchers automáticos
+const updateDisplayText = (dateObj) => {
+  if (dateObj.date && dateObj.startTime && dateObj.endTime) {
+    dateObj.displayText = `${dateObj.date} ${dateObj.startTime} - ${dateObj.endTime}`;
+  }
+};
+
+// Función para verificar conflictos en irregular_dates de otras reservaciones aprobadas
+const checkIrregularDateConflicts = (newDateObj) => {
+  const newStart = new Date(`${newDateObj.date}T${newDateObj.startTime}:00`);
+  const newEnd = new Date(`${newDateObj.date}T${newDateObj.endTime}:00`);
+  const foundConflicts = [];
+
+  if (!props.reservations) return foundConflicts;
+
+  props.reservations.forEach(res => {
+    // Excluir la reservación actual
+    if (res.id === props.reservation?.id) return;
+    
+    // Filtrar por faculty_id, classroom_id y status 'Aprobado'
+    if (parseInt(res.faculty_id) !== parseInt(form.faculty_id)) return;
+    if (parseInt(res.classroom_id) !== parseInt(form.classroom_id)) return;
+    if (res.status !== 'Aprobado') return;
+
+    // Parsear irregular_dates si existe
+    let irreg = res.irregular_dates;
+    if (typeof irreg === 'string') {
+      try {
+        irreg = JSON.parse(irreg);
+      } catch (e) {
+        console.error('Error parsing irregular_dates:', irreg);
+        return;
+      }
+    }
+    if (!Array.isArray(irreg) || irreg.length === 0) return;
+
+    // Verificar coincidencia de fecha y solapamiento de horas
+    irreg.forEach(d => {
+      if (d.date !== newDateObj.date) return;
+      
+      const dStart = new Date(`${d.date}T${d.startTime}:00`);
+      const dEnd = new Date(`${d.date}T${d.endTime}:00`);
+
+      // Solapamiento: si newStart < dEnd y newEnd > dStart
+      if (newStart < dEnd && newEnd > dStart) {
+        foundConflicts.push({
+          event_title: res.event_title,
+          date: d.date,
+          startTime: d.startTime,
+          endTime: d.endTime,
+          newDate: newDateObj.date,
+          newStartTime: newDateObj.startTime,
+          newEndTime: newDateObj.endTime
+        });
+      }
+    });
+  });
+
+  return foundConflicts;
+};
+
+// Agregar fecha irregular - SOLO MODIFICA EL ARRAY LOCAL
+const addIrregularDate = () => {
+  if (newIrregularDate.value.date && newIrregularDate.value.startTime && newIrregularDate.value.endTime) {
+    const newDateObj = {
+      date: newIrregularDate.value.date,
+      startTime: newIrregularDate.value.startTime,
+      endTime: newIrregularDate.value.endTime
+    };
+
+    // Actualizar displayText manualmente
+    updateDisplayText(newDateObj);
+
+    // Verificar conflictos solo si existen reservaciones
+    if (props.reservations && props.reservations.length > 0) {
+      const foundConflicts = checkIrregularDateConflicts(newDateObj);
+      if (foundConflicts.length > 0) {
+        // Agregar conflictos encontrados al área de notificaciones
+        foundConflicts.forEach(conflict => {
+          addConflict(conflict);
+        });
+      }
+    }
+
+    // SOLO agregar al array local - NO actualizar el formulario automáticamente
+    irregularDates.value.push(newDateObj);
+    newIrregularDate.value = { date: '', startTime: '', endTime: '' };
+    
+    console.log('Fecha agregada al array local (no guardada aún):', newDateObj);
+  }
+};
+
+// Eliminar fecha irregular - SOLO MODIFICA EL ARRAY LOCAL
+const removeIrregularDate = (index) => {
+  const removedDate = irregularDates.value[index];
+  irregularDates.value.splice(index, 1);
+  
+  // Remover conflictos relacionados con esta fecha
+  conflicts.value = conflicts.value.filter(conflict => 
+    !(conflict.newDate === removedDate.date && 
+      conflict.newStartTime === removedDate.startTime && 
+      conflict.newEndTime === removedDate.endTime)
+  );
+  
+  // Ocultar el área de conflictos si no hay más conflictos
+  if (conflicts.value.length === 0) {
+    showConflicts.value = false;
+  }
+  
+  console.log('Fecha eliminada del array local (no guardada aún). Array actual:', JSON.stringify(irregularDates.value, null, 2));
+};
+
+// Preparar datos para envío - AQUÍ SE SINCRONIZA CON EL FORMULARIO
 const prepareSubmit = () => {
-    form.irregular_dates = irregularDates.value.length > 0 ? JSON.stringify(irregularDates.value) : null;
-    // form.recurring_days = selectedDays.value.length > 0 ? JSON.stringify(selectedDays.value) : null;
-    form.start_datetime = new Date(form.start_datetime).toISOString();
-    form.end_datetime = form.end_datetime ? new Date(form.end_datetime).toISOString() : null;
-    // if (form.recurring_end_date) {
-    //     form.recurring_end_date = new Date(form.recurring_end_date).toISOString();
-    // }
+  // SOLO AQUÍ se actualiza el formulario con las fechas irregulares
+  form.irregular_dates = irregularDates.value.length > 0 ? JSON.stringify(irregularDates.value) : null;
+  console.log('Prepared irregular_dates:', form.irregular_dates);
+  
+  // Preparar fechas usando los valores de visualización si han cambiado
+  if (displayStartDateTime.value) {
+    form.start_datetime = new Date(displayStartDateTime.value).toISOString();
+  }
+  if (displayEndDateTime.value) {
+    form.end_datetime = new Date(displayEndDateTime.value).toISOString();
+  } else {
+    form.end_datetime = null;
+  }
+  
+  Object.keys(form.data()).forEach(key => {
+    if (form[key] === '' && key !== 'status') {
+      form[key] = null;
+    }
+  });
 };
 
 // Enviar formulario
 const submit = () => {
-    prepareSubmit();
-    form.put(route('admin.area.events.update', form.id), {
-        onSuccess: () => {
-            emit('close');
-        },
-        onError: (errors) => {
-            console.error('Errores:', errors);
-        }
-    });
+  if (!form.id) {
+    console.error('Reservation ID is missing');
+    return;
+  }
+  
+  if (isSubmitting.value) return;
+  
+  isSubmitting.value = true;
+  
+  // Preparar datos justo antes del envío
+  prepareSubmit();
+  
+  const formData = new FormData();
+  Object.entries(form.data()).forEach(([key, value]) => {
+    formData.append(key, value === null ? '' : value);
+  });
+  
+  console.log('FormData payload:', [...formData.entries()]);
+  console.log('Submitting form with data:', JSON.stringify(form.data(), null, 2));
+  
+  form.put(route('admin.area.events.update', form.id), {
+    preserveState: true,
+    preserveScroll: true,
+    onSuccess: () => {
+      console.log('Form submitted successfully, irregular_dates:', form.irregular_dates);
+      displayStartDateTime.value = formatDateTimeForInput(form.start_datetime);
+      displayEndDateTime.value = formatDateTimeForInput(form.end_datetime);
+      isSubmitting.value = false;
+      emit('close');
+    },
+    onError: (errors) => {
+      console.error('Form submission errors:', errors);
+      displayStartDateTime.value = formatDateTimeForInput(form.start_datetime);
+      displayEndDateTime.value = formatDateTimeForInput(form.end_datetime);
+      isSubmitting.value = false;
+    },
+    onFinish: () => {
+      isSubmitting.value = false;
+    }
+  });
 };
 
-// Cerrar modal
+// Cerrar modal y cancelar operación
 const close = () => {
-    emit('close');
+  if (isSubmitting.value) {
+    form.cancel();
+    console.log('Operación de guardado cancelada');
+  }
+  
+  isSubmitting.value = false;
+  // Resetear todo a los valores originales (incluyendo irregularDates)
+  resetToOriginal();
+  emit('close');
 };
 </script>
 
@@ -173,7 +356,7 @@ const close = () => {
                                 </div>
                                 <div>
                                     <label for="faculty_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Facultad</label>
-                                    <select id="faculty_id" v-model="form.faculty_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                                    <select id="faculty_id" v-model="form.faculty_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required disabled>
                                         <option value="">Seleccione una facultad</option>
                                         <option v-for="faculty in faculties" :key="faculty.id" :value="faculty.id">{{ faculty.name }}</option>
                                     </select>
@@ -181,7 +364,7 @@ const close = () => {
                                 </div>
                                 <div>
                                     <label for="municipality_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Municipio</label>
-                                    <select id="municipality_id" v-model="form.municipality_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                                    <select id="municipality_id" v-model="form.municipality_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required disabled>
                                         <option value="">Seleccione un municipio</option>
                                         <option v-for="municipality in municipalities" :key="municipality.id" :value="municipality.id">{{ municipality.name }}</option>
                                     </select>
@@ -211,7 +394,7 @@ const close = () => {
                                 </div>
                                 <div>
                                     <label for="classroom_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Escenario/Aula</label>
-                                    <select id="classroom_id" v-model="form.classroom_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                                    <select id="classroom_id" v-model="form.classroom_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required disabled>
                                         <option value="">Seleccione un aula</option>
                                         <option v-for="classroom in classrooms" :key="classroom.id" :value="classroom.id">{{ classroom.name }}</option>
                                     </select>
@@ -224,12 +407,12 @@ const close = () => {
                                 </div>
                                 <div>
                                     <label for="start_datetime" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha y Hora de Inicio</label>
-                                    <input id="start_datetime" v-model="form.start_datetime" type="datetime-local" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required />
+                                    <input id="start_datetime" v-model="displayStartDateTime" type="datetime-local" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required />
                                     <div v-if="form.errors.start_datetime" class="text-red-500 text-sm mt-1">{{ form.errors.start_datetime }}</div>
                                 </div>
                                 <div>
                                     <label for="end_datetime" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha y Hora de Fin</label>
-                                    <input id="end_datetime" v-model="form.end_datetime" type="datetime-local" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                                    <input id="end_datetime" v-model="displayEndDateTime" type="datetime-local" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
                                     <div v-if="form.errors.end_datetime" class="text-red-500 text-sm mt-1">{{ form.errors.end_datetime }}</div>
                                 </div>
                                 <div>
@@ -237,10 +420,10 @@ const close = () => {
                                     <select id="status" v-model="form.status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
                                         <option value="pendiente">Pendiente</option>
                                         <option value="Aprobado">Aprobado</option>
-                                        <option value="rechazado">Rechazado</option>
-                                        <option value="cancelado">Cancelado</option>
-                                        <option value="no_realizado">No Realizado</option>
-                                        <option value="realizado">Realizado</option>
+                                        <option value="Rechazado">Rechazado</option>
+                                        <option value="Cancelado">Cancelado</option>
+                                        <option value="No_realizado">No Realizado</option>
+                                        <option value="Realizado">Realizado</option>
                                     </select>
                                     <div v-if="form.errors.status" class="text-red-500 text-sm mt-1">{{ form.errors.status }}</div>
                                 </div>
@@ -250,100 +433,151 @@ const close = () => {
                                 <textarea id="requirements" v-model="form.requirements" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
                                 <div v-if="form.errors.requirements" class="text-red-500 text-sm mt-1">{{ form.errors.requirements }}</div>
                             </div>
-                            <!-- Checkbox eliminado -->
-                            <!-- <div class="mt-4">
-                                <label for="is_recurring" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Evento Recurrente</label>
-                                <input id="is_recurring" v-model="form.is_recurring" type="checkbox" @change="toggleRecurringOptions" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600" />
-                            </div> -->
+                        </div>
+
+                        <!-- Área de conflictos -->
+                        <div v-if="showConflicts" class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                          <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                              <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                              </svg>
+                            </div>
+                            <div class="ml-3 flex-1">
+                              <h3 class="text-sm font-medium text-red-800 dark:text-red-400">
+                                Conflictos de Horario Detectados
+                              </h3>
+                              <div class="mt-2 text-sm text-red-700 dark:text-red-300">
+                                <p class="mb-2">Las siguientes fechas y horarios coinciden con reservaciones ya aprobadas:</p>
+                                <ul class="space-y-2">
+                                  <li v-for="(conflict, index) in conflicts" :key="index" class="bg-white dark:bg-gray-800 p-3 rounded border-l-4 border-red-400">
+                                    <div class="flex justify-between items-start">
+                                      <div class="flex-1">
+                                        <p class="font-semibold text-gray-900 dark:text-gray-100">
+                                          {{ conflict.event_title }}
+                                        </p>
+                                        <p class="text-gray-600 dark:text-gray-400">
+                                          <strong>Fecha:</strong> {{ conflict.date }}
+                                        </p>
+                                        <p class="text-gray-600 dark:text-gray-400">
+                                          <strong>Horario ocupado:</strong> {{ conflict.startTime }} - {{ conflict.endTime }}
+                                        </p>
+                                        <p class="text-red-600 dark:text-red-400">
+                                          <strong>Nueva fecha solicitada:</strong> {{ conflict.newStartTime }} - {{ conflict.newEndTime }}
+                                        </p>
+                                      </div>
+                                      <button 
+                                        type="button" 
+                                        @click="conflicts.splice(index, 1); if (conflicts.length === 0) showConflicts = false"
+                                        class="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        title="Descartar este conflicto"
+                                      >
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </li>
+                                </ul>
+                              </div>
+                              <div class="mt-3">
+                                <button 
+                                  type="button" 
+                                  @click="clearConflicts" 
+                                  class="text-sm bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 px-3 py-1 rounded hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                                >
+                                  Limpiar todos los conflictos
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
                         <!-- Opciones de recurrencia -->
-                        <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                            <h3 class="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-200 border-b pb-2">Opciones de Recurrencia</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <!-- <div>
-                                    <label for="repeticion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Repeticiones</label>
-                                    <input id="repeticion" v-model="form.repeticion" type="number" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                                    <div v-if="form.errors.repeticion" class="text-red-500 text-sm mt-1">{{ form.errors.repeticion }}</div>
-                                </div> -->
-                                <!-- <div>
-                                    <label for="recurring_frequency" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Frecuencia</label>
-                                    <select id="recurring_frequency" v-model="form.recurring_frequency" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                        <option value="daily">Diaria</option>
-                                        <option value="weekly">Semanal</option>
-                                        <option value="biweekly">Quincenal</option>
-                                        <option value="monthly">Mensual</option>
-                                    </select>
-                                    <div v-if="form.errors.recurring_frequency" class="text-red-500 text-sm mt-1">{{ form.errors.recurring_frequency }}</div>
-                                </div> -->
-                                <!-- <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Días Recurrentes</label>
-                                    <div class="flex flex-wrap gap-2">
-                                        <div v-for="(day, index) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']" :key="index" class="flex items-center">
-                                            <input :id="`day-${index}`" type="checkbox" :value="day" v-model="selectedDays" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600" />
-                                            <label :for="`day-${index}`" class="ml-1 text-sm text-gray-700 dark:text-gray-300">{{ day }}</label>
-                                        </div>
-                                    </div>
-                                    <div v-if="form.errors.recurring_days" class="text-red-500 text-sm mt-1">{{ form.errors.recurring_days }}</div>
-                                </div> -->
-                                <!-- <div>
-                                    <label for="recurring_end_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha Fin de Recurrencia</label>
-                                    <input id="recurring_end_date" v-model="form.recurring_end_date" type="datetime-local" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                                    <div v-if="form.errors.recurring_end_date" class="text-red-500 text-sm mt-1">{{ form.errors.recurring_end_date }}</div>
-                                </div> -->
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fechas Irregulares</label>
-                                    <div class="flex flex-wrap gap-2 mb-4">
-                                        <input type="date" v-model="newIrregularDate.date" class="rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                                        <input type="time" v-model="newIrregularDate.startTime" class="rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                                        <input type="time" v-model="newIrregularDate.endTime" class="rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                                        <button type="button" @click="addIrregularDate" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">Agregar</button>
-                                    </div>
-                                    <div v-if="irregularDates.length" class="mt-4">
-                                        <table class="min-w-full bg-white dark:bg-gray-700 rounded-lg overflow-hidden">
-                                            <thead class="bg-gray-100 dark:bg-gray-600">
-                                                <tr>
-                                                    <th class="px-4 py-2 text-left text-gray-700 dark:text-gray-200">Fecha</th>
-                                                    <th class="px-4 py-2 text-left text-gray-700 dark:text-gray-200">Inicio</th>
-                                                    <th class="px-4 py-2 text-left text-gray-700 dark:text-gray-200">Fin</th>
-                                                    <th class="px-4 py-2 text-left text-gray-700 dark:text-gray-200">Acciones</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="(date, index) in irregularDates" :key="index" class="border-b dark:border-gray-600">
-                                                    <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
-                                                        <input type="date" v-model="date.date" class="bg-transparent border-b border-gray-300 dark:border-gray-500 focus:border-blue-500" />
-                                                    </td>
-                                                    <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
-                                                        <input type="time" v-model="date.startTime" class="bg-transparent border-b border-gray-300 dark:border-gray-500 focus:border-blue-500" />
-                                                    </td>
-                                                    <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
-                                                        <input type="time" v-model="date.endTime" class="bg-transparent border-b border-gray-300 dark:border-gray-500 focus:border-blue-500" />
-                                                    </td>
-                                                    <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
-                                                        <button @click="removeIrregularDate(index)" class="text-red-500 hover:text-red-700">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                                            </svg>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <div v-if="form.errors.irregular_dates" class="text-red-500 text-sm mt-1">{{ form.errors.irregular_dates }}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Botones de acción -->
-                        <div class="flex justify-end gap-4 mt-6">
-                            <button type="button" @click="close" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition-colors">Cancelar</button>
-                            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors" :disabled="form.processing">{{ form.processing ? 'Guardando...' : 'Guardar Cambios' }}</button>
-                        </div>
-                    </form>
+            <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <h3 class="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-200 border-b pb-2">Opciones de Recurrencia</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fechas Irregulares</label>
+                  <div class="flex flex-wrap gap-2 mb-4">
+                    <input type="date" v-model="newIrregularDate.date" class="rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                    <select v-model="newIrregularDate.startTime" class="rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                      <option value="">Inicio</option>
+                      <option v-for="time in timeOptions" :key="time" :value="time">{{ time }}</option>
+                    </select>
+                    <select v-model="newIrregularDate.endTime" class="rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                      <option value="">Fin</option>
+                      <option v-for="time in timeOptions" :key="time" :value="time">{{ time }}</option>
+                    </select>
+                    <button type="button" @click="addIrregularDate" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">Agregar</button>
+                  </div>
+                  <div v-if="irregularDates.length" class="mt-4">
+                    <table class="min-w-full bg-white dark:bg-gray-700 rounded-lg overflow-hidden">
+                      <thead class="bg-gray-100 dark:bg-gray-600">
+                        <tr>
+                          <th class="px-4 py-2 text-left text-gray-700 dark:text-gray-200">Fecha</th>
+                          <th class="px-4 py-2 text-left text-gray-700 dark:text-gray-200">Inicio</th>
+                          <th class="px-4 py-2 text-left text-gray-700 dark:text-gray-200">Fin</th>
+                          <th class="px-4 py-2 text-left text-gray-700 dark:text-gray-200">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(date, index) in irregularDates" :key="index" class="border-b dark:border-gray-600">
+                          <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
+                            <input type="date" v-model="date.date" class="bg-transparent border-b border-gray-300 dark:border-gray-500 focus:border-blue-500" />
+                          </td>
+                          <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
+                            <select v-model="date.startTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                              <option v-for="time in timeOptions" :key="time" :value="time">{{ time }}</option>
+                            </select>
+                          </td>
+                          <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
+                            <select v-model="date.endTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                              <option v-for="time in timeOptions" :key="time" :value="time">{{ time }}</option>
+                            </select>
+                          </td>
+                          <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
+                            <button type="button" @click="removeIrregularDate(index)" class="text-red-500 hover:text-red-700">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div v-if="form.errors.irregular_dates" class="text-red-500 text-sm mt-1">{{ form.errors.irregular_dates }}</div>
                 </div>
+              </div>
             </div>
+
+            <!-- Botones de acción -->
+            <div class="flex justify-end gap-4 mt-6">
+              <button 
+                type="button" 
+                @click="close" 
+                class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit" 
+                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center" 
+                :disabled="isSubmitting"
+              >
+                <span v-if="isSubmitting" class="animate-spin mr-2">
+                  <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                  </svg>
+                </span>
+                {{ isSubmitting ? 'Guardando...' : 'Guardar Cambios' }}
+              </button>
+            </div>
+          </form>
         </div>
+      </div>
     </div>
+  </div>
 </template>

@@ -545,6 +545,7 @@ onMounted(() => {
       :classrooms="classrooms"
       :categorie="categorie"
       :municipalities="municipalities"
+      :reservations="props.reservaciones"
       @close="closeEditModal"
     />
     <DeleteReservationModal

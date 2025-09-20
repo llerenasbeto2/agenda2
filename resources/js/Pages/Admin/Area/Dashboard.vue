@@ -411,6 +411,7 @@ const eliminarReservacion = (id) => {
       :categorie="props.categorie"
       :municipalities="props.municipalities"
       :responsibleId="props.auth.user.responsible"
+      :reservations="props.reservaciones"
       @close="closeEditModal"
     />
     <DeleteReservationModal
