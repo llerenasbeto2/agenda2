@@ -33,7 +33,6 @@ class FacultyController extends Controller
         ]);
     }
 
-    // Los métodos create, store, edit, update y destroy permanecen sin cambios
     public function create()
     {
         $municipalities = Municipality::all();
@@ -56,9 +55,8 @@ class FacultyController extends Controller
             'description' => 'required|string',
             'web_site' => 'nullable|url|max:255',
             'capacity' => 'nullable|integer|min:1',
-            'image_option' => 'required|in:url,upload',
-            'image_url' => 'nullable|url|max:255|required_if:image_option,url',
-            'image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:image_option,upload',
+            // Solo URL de imagen ahora
+            'image_url' => 'nullable|url|max:255',
             'classrooms' => 'array',
             'classrooms.*.name' => 'required|string|max:255',
             'classrooms.*.capacity' => 'required|integer|min:1',
@@ -66,9 +64,9 @@ class FacultyController extends Controller
             'classrooms.*.responsible' => 'nullable|exists:users,id',
             'classrooms.*.email' => 'nullable|email|max:255',
             'classrooms.*.phone' => 'nullable|string|max:50',
-            'classrooms.*.image_option' => 'required|in:url,upload',
-            'classrooms.*.image_url' => 'nullable|url|max:255|required_if:classrooms.*.image_option,url',
-            'classrooms.*.image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:classrooms.*.image_option,upload',
+            'classrooms.*.web_site' => 'nullable|url|max:255',
+            // Solo URL de imagen para aulas
+            'classrooms.*.image_url' => 'nullable|url|max:255',
             'classrooms.*.uses_db_storage' => 'required|boolean',
         ]);
 
@@ -86,15 +84,9 @@ class FacultyController extends Controller
         ]);
 
         $data['capacity'] = $request->input('capacity', null);
-
-        if ($request->image_option === 'upload' && $request->hasFile('image_file')) {
-            $path = $request->file('image_file')->store('faculties', 'public');
-            $data['image'] = $path;
-        } elseif ($request->image_option === 'url') {
-            $data['image'] = $request->image_url;
-        } else {
-            $data['image'] = null;
-        }
+        
+        // Solo almacenar URL de imagen
+        $data['image'] = $request->image_url;
 
         $faculty = faculty::create($data);
 
@@ -106,19 +98,12 @@ class FacultyController extends Controller
                 'responsible' => $classroomData['responsible'],
                 'email' => $classroomData['email'],
                 'phone' => $classroomData['phone'],
+                'web_site' => $classroomData['web_site'] ?? null,
                 'uses_db_storage' => $classroomData['uses_db_storage'],
+                // Solo URL de imagen
+                'image_url' => $classroomData['image_url'] ?? null,
+                'image_path' => null,
             ];
-
-            if ($classroomData['image_option'] === 'upload' && isset($classroomData['image_file'])) {
-                $classroom['image_url'] = null;
-                $classroom['image_path'] = $classroomData['image_file']->store('classrooms', 'public');
-            } elseif ($classroomData['image_option'] === 'url') {
-                $classroom['image_url'] = $classroomData['image_url'];
-                $classroom['image_path'] = null;
-            } else {
-                $classroom['image_url'] = null;
-                $classroom['image_path'] = null;
-            }
 
             $faculty->classrooms()->create($classroom);
         }
@@ -152,9 +137,8 @@ class FacultyController extends Controller
             'description' => 'required|string',
             'web_site' => 'nullable|url|max:255',
             'capacity' => 'nullable|integer|min:1',
-            'image_option' => 'required|in:url,upload',
-            'image_url' => 'nullable|url|max:255|required_if:image_option,url',
-            'image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:image_option,upload',
+            // Solo URL de imagen
+            'image_url' => 'nullable|url|max:255',
             'classrooms' => 'nullable|array',
             'classrooms.*.id' => 'nullable|exists:classrooms,id',
             'classrooms.*.name' => 'required|string|max:255',
@@ -163,9 +147,9 @@ class FacultyController extends Controller
             'classrooms.*.responsible' => 'nullable|exists:users,id',
             'classrooms.*.email' => 'nullable|email|max:255',
             'classrooms.*.phone' => 'nullable|string|max:50',
-            'classrooms.*.image_option' => 'required|in:url,upload',
-            'classrooms.*.image_url' => 'nullable|url|max:255|required_if:classrooms.*.image_option,url',
-            'classrooms.*.image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:classrooms.*.image_option,upload',
+            'classrooms.*.web_site' => 'nullable|url|max:255',
+            // Solo URL de imagen para aulas
+            'classrooms.*.image_url' => 'nullable|url|max:255',
             'classrooms.*.uses_db_storage' => 'required|boolean',
         ]);
 
@@ -183,18 +167,9 @@ class FacultyController extends Controller
         ]);
 
         $data['capacity'] = $request->input('capacity', null);
-
-        if ($request->image_option === 'upload' && $request->hasFile('image_file')) {
-            if ($faculty->image && !filter_var($faculty->image, FILTER_VALIDATE_URL)) {
-                Storage::disk('public')->delete($faculty->image);
-            }
-            $data['image'] = $request->file('image_file')->store('faculties', 'public');
-        } elseif ($request->image_option === 'url') {
-            if ($faculty->image && !filter_var($faculty->image, FILTER_VALIDATE_URL)) {
-                Storage::disk('public')->delete($faculty->image);
-            }
-            $data['image'] = $request->image_url;
-        }
+        
+        // Solo almacenar URL de imagen
+        $data['image'] = $request->image_url;
 
         $faculty->update($data);
 
@@ -208,10 +183,6 @@ class FacultyController extends Controller
                 if ($classroom) {
                     reservation_classroom::where('classroom_id', $classroomId)->delete();
                     complaint_classroom::where('classroom_id', $classroomId)->delete();
-                    
-                    if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
-                        Storage::disk('public')->delete($classroom->image_path);
-                    }
                     $classroom->delete();
                 }
             }
@@ -224,28 +195,12 @@ class FacultyController extends Controller
                     'responsible' => $classroomData['responsible'],
                     'email' => $classroomData['email'],
                     'phone' => $classroomData['phone'],
+                    'web_site' => $classroomData['web_site'] ?? null,
                     'uses_db_storage' => $classroomData['uses_db_storage'],
+                    // Solo URL de imagen
+                    'image_url' => $classroomData['image_url'] ?? null,
+                    'image_path' => null,
                 ];
-
-                if ($classroomData['image_option'] === 'upload' && isset($classroomData['image_file'])) {
-                    if (isset($classroomData['id'])) {
-                        $existingClassroom = classroom::find($classroomData['id']);
-                        if ($existingClassroom && $existingClassroom->image_path) {
-                            Storage::disk('public')->delete($existingClassroom->image_path);
-                        }
-                    }
-                    $classroom['image_url'] = null;
-                    $classroom['image_path'] = $classroomData['image_file']->store('classrooms', 'public');
-                } elseif ($classroomData['image_option'] === 'url') {
-                    if (isset($classroomData['id'])) {
-                        $existingClassroom = classroom::find($classroomData['id']);
-                        if ($existingClassroom && $existingClassroom->image_path) {
-                            Storage::disk('public')->delete($existingClassroom->image_path);
-                        }
-                    }
-                    $classroom['image_url'] = $classroomData['image_url'];
-                    $classroom['image_path'] = null;
-                }
 
                 if (isset($classroomData['id']) && $classroomData['id']) {
                     classroom::where('id', $classroomData['id'])->update($classroom);
@@ -264,14 +219,9 @@ class FacultyController extends Controller
         foreach ($faculty->classrooms as $classroom) {
             reservation_classroom::where('classroom_id', $classroom->id)->delete();
             complaint_classroom::where('classroom_id', $classroom->id)->delete();
-            if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
-                Storage::disk('public')->delete($classroom->image_path);
-            }
             $classroom->delete();
         }
-        if ($faculty->image && !str_starts_with($faculty->image, 'http') && Storage::disk('public')->exists($faculty->image)) {
-            Storage::disk('public')->delete($faculty->image);
-        }
+        
         $faculty->delete();
         return redirect()->route('admin.general.faculties.index')->with('success', 'Facultad eliminada con éxito.');
     }

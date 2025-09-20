@@ -25,11 +25,8 @@ const form = useForm({
     services: '',
     description: '',
     web_site: '',
-    image_option: 'url',
-    image_url: '',
-    image_file: null,
+    image_url: '', // Solo URL ahora
     classrooms: [],
-    // capacity eliminado del formulario
 });
 
 const classrooms = ref([]);
@@ -46,9 +43,7 @@ const addClassroom = () => {
         email: '',
         phone: '',
         web_site: '',
-        image_option: 'url',
-        image_url: '',
-        image_file: null,
+        image_url: '', // Solo URL
         uses_db_storage: false,
     });
 };
@@ -57,17 +52,8 @@ const removeClassroom = (index) => {
     classrooms.value.splice(index, 1);
 };
 
-const handleImageFile = (event, target) => {
-    if (event.target.files && event.target.files[0]) {
-        target.image_file = event.target.files[0];
-    }
-};
-
 const submit = () => {
-    form.classrooms = classrooms.value.map(classroom => ({
-        ...classroom,
-        image_file: classroom.image_option === 'upload' ? classroom.image_file : null,
-    }));
+    form.classrooms = classrooms.value;
     
     form.post(route('admin.general.faculties.store'), {
         onSuccess: () => {
@@ -92,6 +78,18 @@ const submit = () => {
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
                     <div class="p-6">
+                        <!-- Mensaje informativo sobre las imágenes -->
+                        <div class="mb-6 p-4 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg">
+                            <h4 class="font-semibold">Importante sobre las imágenes:</h4>
+                            <p class="text-sm mt-1">Para garantizar que las imágenes se muestren correctamente en producción, usa URLs de servicios como:</p>
+                            <ul class="text-sm mt-2 list-disc list-inside">
+                                <li><strong>Imgur:</strong> imgur.com - Gratuito, fácil de usar</li>
+                                <li><strong>Cloudinary:</strong> cloudinary.com - Profesional con plan gratuito</li>
+                                <li><strong>ImageBB:</strong> imgbb.com - Gratuito, sin registro</li>
+                                <li><strong>Postimg:</strong> postimg.cc - Gratuito, sin registro</li>
+                            </ul>
+                        </div>
+
                         <form @submit.prevent="submit" class="space-y-6">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
@@ -171,27 +169,11 @@ const submit = () => {
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen</label>
-                                <div class="flex space-x-4 mb-2">
-                                    <label class="flex items-center">
-                                        <input type="radio" v-model="form.image_option" value="url" class="mr-2" />
-                                        URL
-                                    </label>
-                                    <label class="flex items-center">
-                                        <input type="radio" v-model="form.image_option" value="upload" class="mr-2" />
-                                        Subir archivo
-                                    </label>
-                                </div>
-                                <div v-if="form.image_option === 'url'">
-                                    <input id="image_url" type="url" v-model="form.image_url"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                    <div v-if="form.errors.image_url" class="text-red-500 text-sm mt-1">{{ form.errors.image_url }}</div>
-                                </div>
-                                <div v-else>
-                                    <input id="image_file" type="file" accept="image/*" @change="handleImageFile($event, form)"
-                                        class="mt-1 block w-full" />
-                                    <div v-if="form.errors.image_file" class="text-red-500 text-sm mt-1">{{ form.errors.image_file }}</div>
-                                </div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">URL de Imagen</label>
+                                <input id="image_url" type="url" v-model="form.image_url" placeholder="https://ejemplo.com/imagen.jpg"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                <div v-if="form.errors.image_url" class="text-red-500 text-sm mt-1">{{ form.errors.image_url }}</div>
+                                <p class="text-xs text-gray-500 mt-1">Ingresa la URL completa de la imagen (ej: https://i.imgur.com/imagen.jpg)</p>
                             </div>
 
                             <div>
@@ -276,34 +258,24 @@ const submit = () => {
                                     </div>
 
                                     <div class="mt-4">
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen del Aula</label>
-                                        <div class="flex space-x-4 mb-2">
-                                            <label class="flex items-center">
-                                                <input type="radio" v-model="classroom.image_option" value="url" class="mr-2" />
-                                                URL
-                                            </label>
-                                            <label class="flex items-center">
-                                                <input type="radio" v-model="classroom.image_option" value="upload" class="mr-2" />
-                                                Subir archivo
-                                            </label>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">URL de Imagen del Aula</label>
+                                        <input :id="`classroom_image_url_${index}`" type="url" v-model="classroom.image_url" placeholder="https://ejemplo.com/aula.jpg"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                        <div v-if="form.errors[`classrooms.${index}.image_url`]" class="text-red-500 text-sm mt-1">
+                                            {{ form.errors[`classrooms.${index}.image_url`] }}
                                         </div>
-                                        <div v-if="classroom.image_option === 'url'">
-                                            <input :id="`classroom_image_url_${index}`" type="url" v-model="classroom.image_url"
-                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                            <div v-if="form.errors[`classrooms.${index}.image_url`]" class="text-red-500 text-sm mt-1">
-                                                {{ form.errors[`classrooms.${index}.image_url`] }}
-                                            </div>
-                                        </div>
-                                        <div v-else>
-                                            <input :id="`classroom_image_file_${index}`" type="file" accept="image/*" @change="handleImageFile($event, classroom)"
-                                                class="mt-1 block w-full" />
-                                            <div v-if="form.errors[`classrooms.${index}.image_file`]" class="text-red-500 text-sm mt-1">
-                                                {{ form.errors[`classrooms.${index}.image_file`] }}
-                                            </div>
-                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1">URL completa de la imagen del aula</p>
                                     </div>
 
-                            
+                                    <div class="mt-4">
+                                        <label class="flex items-center">
+                                            <input type="checkbox" v-model="classroom.uses_db_storage" class="mr-2 rounded border-gray-300 focus:ring-indigo-500" />
+                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Usar almacenamiento de base de datos</span>
+                                        </label>
+                                        <div v-if="form.errors[`classrooms.${index}.uses_db_storage`]" class="text-red-500 text-sm mt-1">
+                                            {{ form.errors[`classrooms.${index}.uses_db_storage`] }}
+                                        </div>
+                                    </div>
 
                                     <button type="button" @click="removeClassroom(index)"
                                         class="mt-4 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">

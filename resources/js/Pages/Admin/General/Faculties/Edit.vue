@@ -19,10 +19,7 @@ const form = useForm({
     services: props.faculty.services || '',
     description: props.faculty.description || '',
     web_site: props.faculty.web_site || '',
-    image_option: props.faculty.image ? (props.faculty.image.includes('http') ? 'url' : 'upload') : 'url',
-    image_url: props.faculty.image && props.faculty.image.includes('http') ? props.faculty.image : '',
-    image_file: null,
-    // capacity eliminado del formulario
+    image_url: props.faculty.image || '', // Solo URL
 });
 
 const classrooms = ref(props.faculty.classrooms.map(classroom => ({
@@ -33,9 +30,8 @@ const classrooms = ref(props.faculty.classrooms.map(classroom => ({
     responsible: classroom.responsible || '',
     email: classroom.email || '',
     phone: classroom.phone || '',
-    image_option: classroom.image_url ? 'url' : classroom.image_path ? 'upload' : 'url',
-    image_url: classroom.image_url || '',
-    image_file: null,
+    web_site: classroom.web_site || '',
+    image_url: classroom.image_url || '', // Solo URL
     uses_db_storage: classroom.uses_db_storage || false,
 })));
 
@@ -48,21 +44,14 @@ const addClassroom = () => {
         responsible: '',
         email: '',
         phone: '',
-        image_option: 'url',
-        image_url: '',
-        image_file: null,
+        web_site: '',
+        image_url: '', // Solo URL
         uses_db_storage: false,
     });
 };
 
 const removeClassroom = (index) => {
     classrooms.value.splice(index, 1);
-};
-
-const handleImageFile = (event, target) => {
-    if (event.target.files && event.target.files[0]) {
-        target.image_file = event.target.files[0];
-    }
 };
 
 const submit = () => {
@@ -79,14 +68,7 @@ const submit = () => {
     formData.append('services', form.services);
     formData.append('description', form.description);
     formData.append('web_site', form.web_site);
-    formData.append('image_option', form.image_option);
-    
-    // Handle faculty image
-    if (form.image_option === 'upload' && form.image_file) {
-        formData.append('image_file', form.image_file);
-    } else if (form.image_option === 'url') {
-        formData.append('image_url', form.image_url);
-    }
+    formData.append('image_url', form.image_url); // Solo URL
     
     // Add classrooms data
     classrooms.value.forEach((classroom, index) => {
@@ -97,14 +79,9 @@ const submit = () => {
         formData.append(`classrooms[${index}][responsible]`, classroom.responsible);
         formData.append(`classrooms[${index}][email]`, classroom.email);
         formData.append(`classrooms[${index}][phone]`, classroom.phone);
+        formData.append(`classrooms[${index}][web_site]`, classroom.web_site);
         formData.append(`classrooms[${index}][uses_db_storage]`, classroom.uses_db_storage ? '1' : '0');
-        formData.append(`classrooms[${index}][image_option]`, classroom.image_option);
-        
-        if (classroom.image_option === 'upload' && classroom.image_file) {
-            formData.append(`classrooms[${index}][image_file]`, classroom.image_file);
-        } else if (classroom.image_option === 'url') {
-            formData.append(`classrooms[${index}][image_url]`, classroom.image_url);
-        }
+        formData.append(`classrooms[${index}][image_url]`, classroom.image_url); // Solo URL
     });
     
     router.post(route('admin.general.faculties.update', props.faculty.id), formData, {
@@ -133,6 +110,18 @@ const submit = () => {
 
         <div class="py-12">
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                <!-- Mensaje informativo sobre las imágenes -->
+                <div class="mb-6 p-4 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg">
+                    <h4 class="font-semibold">Importante sobre las imágenes:</h4>
+                    <p class="text-sm mt-1">Para garantizar que las imágenes se muestren correctamente en producción, usa URLs de servicios como:</p>
+                    <ul class="text-sm mt-2 list-disc list-inside">
+                        <li><strong>Imgur:</strong> imgur.com - Gratuito, fácil de usar</li>
+                        <li><strong>Cloudinary:</strong> cloudinary.com - Profesional con plan gratuito</li>
+                        <li><strong>ImageBB:</strong> imgbb.com - Gratuito, sin registro</li>
+                        <li><strong>Postimg:</strong> postimg.cc - Gratuito, sin registro</li>
+                    </ul>
+                </div>
+
                 <div v-if="$page.props.flash.success" class="mb-4 p-4 bg-green-100 text-green-700 rounded">
                     {{ $page.props.flash.success }}
                 </div>
@@ -144,49 +133,57 @@ const submit = () => {
                 </div>
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
                     <div class="p-6">
-                        <form @submit.prevent="submit" enctype="multipart/form-data" class="space-y-6">
-                            <div>
-                                <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Nombre</label>
-                                <input id="name" type="text" v-model="form.name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                <div v-if="form.errors.name" class="text-red-500 text-sm mt-1">{{ form.errors.name }}</div>
-                            </div>
-
-                            <div>
-                                <label for="location" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Ubicación</label>
-                                <input id="location" type="text" v-model="form.location" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                <div v-if="form.errors.location" class="text-red-500 text-sm mt-1">{{ form.errors.location }}</div>
-                            </div>
-
-                            <div>
-                                <label for="responsible" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Responsable</label>
-                                <select id="responsible" v-model="form.responsible" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
-                                    <option value="">Seleccione un responsable</option>
-                                    <option v-for="user in Array.isArray(props.users) ? props.users.filter(u => u.rol_id === 3) : []" :key="user.id" :value="user.id">{{ user.name }}</option>
-                                </select>
-                                <div v-if="form.errors.responsible" class="text-red-500 text-sm mt-1">{{ form.errors.responsible }}</div>
-                                <div v-if="Array.isArray(props.users) && props.users.filter(u => u.rol_id === 3).length === 0" class="text-yellow-500 text-sm mt-1">
-                                    No hay usuarios con rol_id 3 disponibles.
+                        <form @submit.prevent="submit" class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Nombre</label>
+                                    <input id="name" type="text" v-model="form.name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                    <div v-if="form.errors.name" class="text-red-500 text-sm mt-1">{{ form.errors.name }}</div>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Correo</label>
-                                <input id="email" type="email" v-model="form.email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                <div v-if="form.errors.email" class="text-red-500 text-sm mt-1">{{ form.errors.email }}</div>
-                            </div>
+                                <div>
+                                    <label for="location" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Ubicación</label>
+                                    <input id="location" type="text" v-model="form.location" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                    <div v-if="form.errors.location" class="text-red-500 text-sm mt-1">{{ form.errors.location }}</div>
+                                </div>
 
-                            <div>
-                                <label for="phone" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Teléfono</label>
-                                <input id="phone" type="text" v-model="form.phone" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                <div v-if="form.errors.phone" class="text-red-500 text-sm mt-1">{{ form.errors.phone }}</div>
-                            </div>
+                                <div>
+                                    <label for="responsible" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Responsable</label>
+                                    <select id="responsible" v-model="form.responsible" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
+                                        <option value="">Seleccione un responsable</option>
+                                        <option v-for="user in Array.isArray(props.users) ? props.users.filter(u => u.rol_id === 3) : []" :key="user.id" :value="user.id">{{ user.name }}</option>
+                                    </select>
+                                    <div v-if="form.errors.responsible" class="text-red-500 text-sm mt-1">{{ form.errors.responsible }}</div>
+                                    <div v-if="Array.isArray(props.users) && props.users.filter(u => u.rol_id === 3).length === 0" class="text-yellow-500 text-sm mt-1">
+                                        No hay usuarios con rol_id 3 disponibles.
+                                    </div>
+                                </div>
 
-                            <div>
-                                <label for="municipality_id" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Municipio</label>
-                                <select id="municipality_id" v-model="form.municipality_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
-                                    <option v-for="municipality in municipalities" :key="municipality.id" :value="municipality.id">{{ municipality.name }}</option>
-                                </select>
-                                <div v-if="form.errors.municipality_id" class="text-red-500 text-sm mt-1">{{ form.errors.municipality_id }}</div>
+                                <div>
+                                    <label for="municipality_id" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Municipio</label>
+                                    <select id="municipality_id" v-model="form.municipality_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
+                                        <option v-for="municipality in municipalities" :key="municipality.id" :value="municipality.id">{{ municipality.name }}</option>
+                                    </select>
+                                    <div v-if="form.errors.municipality_id" class="text-red-500 text-sm mt-1">{{ form.errors.municipality_id }}</div>
+                                </div>
+
+                                <div>
+                                    <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Correo</label>
+                                    <input id="email" type="email" v-model="form.email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                    <div v-if="form.errors.email" class="text-red-500 text-sm mt-1">{{ form.errors.email }}</div>
+                                </div>
+
+                                <div>
+                                    <label for="phone" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Teléfono</label>
+                                    <input id="phone" type="text" v-model="form.phone" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                    <div v-if="form.errors.phone" class="text-red-500 text-sm mt-1">{{ form.errors.phone }}</div>
+                                </div>
+
+                                <div>
+                                    <label for="web_site" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Sitio Web</label>
+                                    <input id="web_site" type="url" v-model="form.web_site" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                    <div v-if="form.errors.web_site" class="text-red-500 text-sm mt-1">{{ form.errors.web_site }}</div>
+                                </div>
                             </div>
 
                             <div>
@@ -202,107 +199,98 @@ const submit = () => {
                             </div>
 
                             <div>
-                                <label for="web_site" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Sitio Web</label>
-                                <input id="web_site" type="url" v-model="form.web_site" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                <div v-if="form.errors.web_site" class="text-red-500 text-sm mt-1">{{ form.errors.web_site }}</div>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen</label>
-                                <div class="flex space-x-4 mb-2">
-                                    <label class="flex items-center">
-                                        <input type="radio" v-model="form.image_option" value="url" class="mr-2" />
-                                        URL
-                                    </label>
-                                    <label class="flex items-center">
-                                        <input type="radio" v-model="form.image_option" value="upload" class="mr-2" />
-                                        Subir archivo
-                                    </label>
-                                </div>
-                                <div v-if="form.image_option === 'url'">
-                                    <input id="image_url" type="url" v-model="form.image_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                    <div v-if="form.errors.image_url" class="text-red-500 text-sm mt-1">{{ form.errors.image_url }}</div>
-                                </div>
-                                <div v-else>
-                                    <input id="image_file" type="file" accept="image/*" @change="handleImageFile($event, form)" class="mt-1 block w-full" />
-                                    <div v-if="form.errors.image_file" class="text-red-500 text-sm mt-1">{{ form.errors.image_file }}</div>
-                                    <div v-if="props.faculty.image && !form.image_file" class="mt-2">
-                                        <img :src="props.faculty.image.includes('http') ? props.faculty.image : `/storage/${props.faculty.image}`" alt="Current Image" class="w-32 h-32 object-cover rounded" />
-                                    </div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">URL de Imagen</label>
+                                <input id="image_url" type="url" v-model="form.image_url" placeholder="https://ejemplo.com/imagen.jpg"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                <div v-if="form.errors.image_url" class="text-red-500 text-sm mt-1">{{ form.errors.image_url }}</div>
+                                <p class="text-xs text-gray-500 mt-1">Ingresa la URL completa de la imagen (ej: https://i.imgur.com/imagen.jpg)</p>
+                                
+                                <!-- Vista previa de imagen actual -->
+                                <div v-if="form.image_url" class="mt-2">
+                                    <p class="text-sm text-gray-600 mb-2">Vista previa:</p>
+                                    <img :src="form.image_url" alt="Vista previa" class="w-32 h-32 object-cover rounded border" 
+                                         @error="e => e.target.style.display = 'none'" />
                                 </div>
                             </div>
 
                             <div>
-                                <h3 class="text-lg font-medium text-gray-700 dark:text-gray-200">Aulas</h3>
+                                <h3 class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-4">Aulas</h3>
                                 <button type="button" @click="addClassroom" class="inline-block mb-4 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700">
                                     Agregar Aula
                                 </button>
+                                
                                 <div v-for="(classroom, index) in classrooms" :key="index" class="border p-4 rounded-lg mb-4">
-                                    <div>
-                                        <label :for="'classroom_name_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Nombre del Aula</label>
-                                        <input :id="'classroom_name_' + index" type="text" v-model="classroom.name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                        <div v-if="form.errors[`classrooms.${index}.name`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.name`] }}</div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label :for="'classroom_name_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Nombre del Aula</label>
+                                            <input :id="'classroom_name_' + index" type="text" v-model="classroom.name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                            <div v-if="form.errors[`classrooms.${index}.name`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.name`] }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <label :for="'classroom_capacity_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Capacidad</label>
+                                            <input :id="'classroom_capacity_' + index" type="number" v-model="classroom.capacity" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                            <div v-if="form.errors[`classrooms.${index}.capacity`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.capacity`] }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <label :for="'classroom_responsible_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Responsable</label>
+                                            <select :id="'classroom_responsible_' + index" v-model="classroom.responsible" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
+                                                <option value="">Seleccione un responsable</option>
+                                                <option v-for="user in Array.isArray(props.users) ? props.users.filter(u => u.rol_id === 2) : []" :key="user.id" :value="user.id">{{ user.name }}</option>
+                                            </select>
+                                            <div v-if="form.errors[`classrooms.${index}.responsible`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.responsible`] }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <label :for="'classroom_email_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Correo</label>
+                                            <input :id="'classroom_email_' + index" type="email" v-model="classroom.email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                            <div v-if="form.errors[`classrooms.${index}.email`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.email`] }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <label :for="'classroom_phone_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Teléfono</label>
+                                            <input :id="'classroom_phone_' + index" type="text" v-model="classroom.phone" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                            <div v-if="form.errors[`classrooms.${index}.phone`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.phone`] }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <label :for="'classroom_web_site_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Sitio Web</label>
+                                            <input :id="'classroom_web_site_' + index" type="url" v-model="classroom.web_site" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                            <div v-if="form.errors[`classrooms.${index}.web_site`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.web_site`] }}</div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label :for="'classroom_capacity_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Capacidad</label>
-                                        <input :id="'classroom_capacity_' + index" type="number" v-model="classroom.capacity" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                        <div v-if="form.errors[`classrooms.${index}.capacity`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.capacity`] }}</div>
-                                    </div>
-                                    <div>
+
+                                    <div class="mt-4">
                                         <label :for="'classroom_services_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Servicios</label>
                                         <textarea :id="'classroom_services_' + index" v-model="classroom.services" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"></textarea>
                                         <div v-if="form.errors[`classrooms.${index}.services`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.services`] }}</div>
                                     </div>
-                                    <div>
-                                        <label :for="'classroom_responsible_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Responsable</label>
-                                        <select :id="'classroom_responsible_' + index" v-model="classroom.responsible" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
-                                            <option value="">Seleccione un responsable</option>
-                                            <option v-for="user in Array.isArray(props.users) ? props.users.filter(u => u.rol_id === 2) : []" :key="user.id" :value="user.id">{{ user.name }}</option>
-                                        </select>
-                                        <div v-if="form.errors[`classrooms.${index}.responsible`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.responsible`] }}</div>
-                                        <div v-if="Array.isArray(props.users) && props.users.filter(u => u.rol_id === 2).length === 0" class="text-yellow-500 text-sm mt-1">
-                                            No hay usuarios con rol_id 2 disponibles.
+
+                                    <div class="mt-4">
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">URL de Imagen del Aula</label>
+                                        <input :id="'classroom_image_url_' + index" type="url" v-model="classroom.image_url" placeholder="https://ejemplo.com/aula.jpg"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                        <div v-if="form.errors[`classrooms.${index}.image_url`]" class="text-red-500 text-sm mt-1">
+                                            {{ form.errors[`classrooms.${index}.image_url`] }}
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1">URL completa de la imagen del aula</p>
+                                        
+                                        <!-- Vista previa de imagen del aula -->
+                                        <div v-if="classroom.image_url" class="mt-2">
+                                            <img :src="classroom.image_url" alt="Vista previa aula" class="w-20 h-20 object-cover rounded border" 
+                                                 @error="e => e.target.style.display = 'none'" />
                                         </div>
                                     </div>
-                                    <div>
-                                        <label :for="'classroom_email_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Correo</label>
-                                        <input :id="'classroom_email_' + index" type="email" v-model="classroom.email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                        <div v-if="form.errors[`classrooms.${index}.email`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.email`] }}</div>
-                                    </div>
-                                    <div>
-                                        <label :for="'classroom_phone_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Teléfono</label>
-                                        <input :id="'classroom_phone_' + index" type="text" v-model="classroom.phone" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                        <div v-if="form.errors[`classrooms.${index}.phone`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.phone`] }}</div>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen</label>
-                                        <div class="flex space-x-4 mb-2">
-                                            <label class="flex items-center">
-                                                <input type="radio" v-model="classroom.image_option" value="url" class="mr-2" />
-                                                URL
-                                            </label>
-                                            <label class="flex items-center">
-                                                <input type="radio" v-model="classroom.image_option" value="upload" class="mr-2" />
-                                                Subir archivo
-                                            </label>
-                                        </div>
-                                        <div v-if="classroom.image_option === 'url'">
-                                            <input :id="'classroom_image_url_' + index" type="url" v-model="classroom.image_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                            <div v-if="form.errors[`classrooms.${index}.image_url`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.image_url`] }}</div>
-                                        </div>
-                                        <div v-else>
-                                            <input :id="'classroom_image_file_' + index" type="file" accept="image/*" @change="handleImageFile($event, classroom)" class="mt-1 block w-full" />
-                                            <div v-if="form.errors[`classrooms.${index}.image_file`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.image_file`] }}</div>
-                                            <div v-if="(classroom.image_url || classroom.image_path) && !classroom.image_file" class="mt-2">
-                                                <img :src="classroom.image_url || `/storage/${classroom.image_path}`" alt="Current Image" class="w-32 h-32 object-cover rounded" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                       
-                                        <input :id="'classroom_uses_db_storage_' + index" type="checkbox" v-model="classroom.uses_db_storage" class="mt-1 rounded border-gray-300 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                    
+                                    <div class="mt-4">
+                                        <label class="flex items-center">
+                                            <input :id="'classroom_uses_db_storage_' + index" type="checkbox" v-model="classroom.uses_db_storage" class="mt-1 rounded border-gray-300 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                            <span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200">Usar almacenamiento de base de datos</span>
+                                        </label>
                                         <div v-if="form.errors[`classrooms.${index}.uses_db_storage`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.uses_db_storage`] }}</div>
                                     </div>
+                                    
                                     <button type="button" @click="removeClassroom(index)" class="inline-block mt-2 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">
                                         Eliminar Aula
                                     </button>

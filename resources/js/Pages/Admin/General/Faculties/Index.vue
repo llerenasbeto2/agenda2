@@ -58,7 +58,8 @@ const destroy = (id) => {
 
 const openImageModal = (image) => {
     if (image) {
-        selectedImage.value = image.includes('http') ? image : `/storage/${image}`;
+        // Solo usar la imagen tal como viene, ya sea URL completa o null
+        selectedImage.value = image;
         showImageModal.value = true;
     }
 };
@@ -82,6 +83,21 @@ const truncateText = (text, maxLength = 100) => {
     if (!text) return 'N/A';
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 };
+
+// Función para obtener la URL de imagen segura
+const getImageUrl = (image) => {
+    if (!image) return null;
+    // Si ya es una URL completa, devolverla tal como está
+    if (image.includes('http')) return image;
+    // Si es una ruta local, devolverla con /storage/ (aunque no funcionará en Railway)
+    return `/storage/${image}`;
+};
+
+// Función para mostrar imagen por defecto si falla la carga
+const handleImageError = (event) => {
+    event.target.src = '/images/placeholder.png';
+    event.target.style.display = 'none';
+};
 </script>
 
 <template>
@@ -96,6 +112,12 @@ const truncateText = (text, maxLength = 100) => {
 
         <div class="py-12">
             <div class="mx-auto max-w-full px-4 sm:px-6 lg:px-8">
+                <!-- Mensaje informativo sobre las imágenes -->
+                <div class="mb-6 p-4 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg">
+                    <h4 class="font-semibold">Nota importante:</h4>
+                    <p class="text-sm mt-1">Las imágenes ahora solo funcionan con URLs externas. Si ves imágenes rotas, edita la facultad y cambia a URLs de servicios como Imgur, Cloudinary, etc.</p>
+                </div>
+
                 <div class="overflow-hidden bg-white shadow-xl rounded-xl dark:bg-gray-800">
                     <div class="p-6">
                         <!-- City Selector and New Faculty Button -->
@@ -134,7 +156,7 @@ const truncateText = (text, maxLength = 100) => {
                                     :src="selectedImage" 
                                     alt="Faculty Image" 
                                     class="w-full h-auto max-h-[70vh] object-contain rounded-lg"
-                                    @error="e => e.target.src = '/images/placeholder.png'"
+                                    @error="handleImageError"
                                 />
                             </div>
                         </div>
@@ -162,11 +184,11 @@ const truncateText = (text, maxLength = 100) => {
                                         <p><strong>Imagen:</strong></p>
                                         <img 
                                             v-if="selectedFaculty.image" 
-                                            :src="selectedFaculty.image.includes('http') ? selectedFaculty.image : `/storage/${selectedFaculty.image}`" 
+                                            :src="selectedFaculty.image" 
                                             alt="Faculty Image" 
                                             class="w-full h-auto max-h-64 object-cover rounded-lg shadow-sm cursor-pointer mt-2"
                                             @click="openImageModal(selectedFaculty.image)"
-                                            @error="e => e.target.src = '/images/placeholder.png'"
+                                            @error="handleImageError"
                                         />
                                         <span v-else class="text-gray-500 dark:text-gray-400">Sin imagen</span>
                                     </div>
@@ -216,11 +238,11 @@ const truncateText = (text, maxLength = 100) => {
                                         <td class="px-4 py-4 whitespace-nowrap">
                                             <img 
                                                 v-if="faculty.image" 
-                                                :src="faculty.image.includes('http') ? faculty.image : `/storage/${faculty.image}`" 
+                                                :src="faculty.image" 
                                                 alt="Faculty Image" 
                                                 class="w-10 h-10 object-cover rounded-lg shadow-sm cursor-pointer" 
                                                 @click="openImageModal(faculty.image)"
-                                                @error="e => e.target.src = '/images/placeholder.png'"
+                                                @error="handleImageError"
                                             />
                                             <span v-else class="text-gray-500 dark:text-gray-400">Sin imagen</span>
                                         </td>
@@ -278,11 +300,11 @@ const truncateText = (text, maxLength = 100) => {
                                         <strong>Imagen:</strong>
                                         <img 
                                             v-if="faculty.image" 
-                                            :src="faculty.image.includes('http') ? faculty.image : `/storage/${faculty.image}`" 
+                                            :src="faculty.image" 
                                             alt="Faculty Image" 
                                             class="w-10 h-10 object-cover rounded-lg inline-block mt-1 cursor-pointer"
                                             @click="openImageModal(faculty.image)"
-                                            @error="e => e.target.src = '/images/placeholder.png'"
+                                            @error="handleImageError"
                                         />
                                         <span v-else class="text-gray-500">Sin imagen</span>
                                     </div>
