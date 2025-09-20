@@ -59,6 +59,12 @@ const filteredReservations = computed(() => {
   });
 });
 
+
+const closePaymentModal = () => {
+    showPaymentModal.value = false;
+
+};
+
 // Reset current page when filters change
 watch([selectedStatus, selectedDate, () => filters.value.event_title], () => {
   currentPage.value = 1;
@@ -106,8 +112,22 @@ const openPaymentModal = (reserva) => {
   showPaymentModal.value = true;
 };
 
-const handlePaymentUpdate = (paymentData) => {
-  console.log('Detalles de pago actualizados:', paymentData);
+const handlePaymentUpdate = async (updatedData) => {
+    try {
+        // Actualizar los datos localmente
+        if (selectedReservation.value) {
+            selectedReservation.value.cost = updatedData.cost;
+            selectedReservation.value.is_paid = updatedData.is_paid;
+            selectedReservation.value.payment_date = updatedData.payment_date;
+        }
+        
+        // Opcional: Recargar todos los datos para asegurar consistencia
+        // await fetchReservations(); // Si tienes una función para recargar datos
+        
+        console.log('Datos de pago actualizados:', updatedData);
+    } catch (error) {
+        console.error('Error al actualizar los datos localmente:', error);
+    }
 };
 
 const openIngresosModal = () => {
@@ -400,7 +420,8 @@ const eliminarReservacion = (id) => {
       v-if="selectedReservation"
       :show="showPaymentModal"
       :reservation-id="selectedReservation.id"
-      @close="showPaymentModal = false"
+      :existing-data="selectedReservation" 
+      @close="closePaymentModal"
       @update-payment="handlePaymentUpdate"
     />
     <EditReservationModal
