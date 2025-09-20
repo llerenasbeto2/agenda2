@@ -11,7 +11,7 @@ use App\Models\reservation_classroom;
 use App\Models\classroom;
 use App\Models\Categorie;
 use App\Models\faculty;
-use App\Models\municipality;
+use App\Models\Municipality;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
