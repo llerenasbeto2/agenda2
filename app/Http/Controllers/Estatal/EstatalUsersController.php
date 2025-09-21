@@ -17,11 +17,27 @@ class EstatalUsersController extends Controller
     public function index(Request $request)
     {
         // Crear la consulta base con relaciones necesarias
-        $query = User::with(['rol', 'responsibleClassroom', 'municipality']);
+        $query = User::with(['rol', 'responsibleClassroom.faculty', 'municipality']);
         
-        // Aplicar filtro de búsqueda si existe
+        // Filtrar usuarios según los criterios:
+        // - Todos los usuarios con rol_id = 1
+        // - Solo usuarios con rol_id = 2 que tengan classroom asociado a una facultad
+        $query->where(function ($q) {
+            $q->where('rol_id', 1) // Todos los usuarios con rol_id = 1
+              ->orWhere(function ($subQuery) {
+                  $subQuery->where('rol_id', 2) // Usuarios con rol_id = 2
+                           ->whereHas('responsibleClassroom.faculty'); // que tengan classroom con facultad
+              });
+        });
+        
+        // Aplicar filtro de búsqueda por nombre si existe
         if ($request->has('name') && !empty($request->name)) {
             $query->where('name', 'like', '%' . $request->name . '%');
+        }
+        
+        // Aplicar filtro por tipo de rol si existe
+        if ($request->has('rol_filter') && !empty($request->rol_filter)) {
+            $query->where('rol_id', $request->rol_filter);
         }
         
         // Obtener los resultados
@@ -31,27 +47,32 @@ class EstatalUsersController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'rol' => $user->rol ? $user->rol->name : 'Sin rol',
+                'rol_id' => $user->rol_id,
                 'responsible' => $user->responsibleClassroom ? $user->responsibleClassroom->name : 'Sin aula',
                 'municipality' => $user->municipality ? $user->municipality->name : 'Sin municipio'
             ];
         });
         
+        // Obtener los roles para el filtro
+        $roles = rol::whereIn('id', [1, 2])->get();
+        
         // Renderizar la vista con los datos
         return Inertia::render('Admin/Estatal/Users/Index', [
             'users' => $users,
-            'filters' => $request->only('name')
+            'roles' => $roles,
+            'filters' => $request->only(['name', 'rol_filter'])
         ]);
     }
     
     public function store(Request $request)
     {
         try {
-            // Validación
+            // Validación - asegurándonos que solo se puedan crear usuarios con rol_id 1 o 2
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users',
                 'password' => 'required|string|min:8',
-                'rol_id' => 'required|exists:roles,id',
+                'rol_id' => 'required|in:1,2|exists:roles,id',
                 'municipality_id' => 'required|exists:municipality,id',
                 'responsible_id' => 'nullable|exists:classrooms,id'
             ]);
@@ -78,8 +99,14 @@ class EstatalUsersController extends Controller
 
     public function edit(User $usuario)
     {
-        // Obtener roles específicos (Usuario y Administrador area)
-        $roles = rol::whereIn('name', ['Usuario', 'Administrador area'])->get();
+        // Verificar que el usuario tenga rol_id 1 o 2 antes de permitir edición
+        if (!in_array($usuario->rol_id, [1, 2])) {
+            return redirect()->route('admin.estatal.usuarios.index')
+                ->with('error', 'No tienes permisos para editar este usuario');
+        }
+        
+        // Obtener roles específicos (solo los que están permitidos)
+        $roles = rol::whereIn('id', [1, 2])->get();
         
         // Obtener todos los municipios
         $municipalities = Municipality::all();
@@ -111,10 +138,16 @@ class EstatalUsersController extends Controller
     
     public function update(Request $request, User $usuario)
     {
+        // Verificar que el usuario tenga rol_id 1 o 2 antes de permitir actualización
+        if (!in_array($usuario->rol_id, [1, 2])) {
+            return redirect()->route('admin.estatal.usuarios.index')
+                ->with('error', 'No tienes permisos para actualizar este usuario');
+        }
+        
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,'.$usuario->id,
-            'rol_id' => 'required|exists:roles,id',
+            'rol_id' => 'required|in:1,2|exists:roles,id',
             'municipality_id' => 'required|exists:municipality,id',
             'responsible_id' => 'nullable|exists:classrooms,id'
         ]);
@@ -123,7 +156,9 @@ class EstatalUsersController extends Controller
         $usuario->email = $request->email;
         $usuario->rol_id = $request->rol_id;
         $usuario->municipality_id = $request->municipality_id;
-        $usuario->responsible_id = $request->rol_id == rol::where('name', 'Usuario')->first()->id ? null : $request->responsible_id;
+        
+        // Si el rol es 1 (Usuario), no asignar responsible_id
+        $usuario->responsible_id = $request->rol_id == 1 ? null : $request->responsible_id;
         $usuario->save();
         
         return redirect()->route('admin.estatal.usuarios.index')
@@ -132,6 +167,12 @@ class EstatalUsersController extends Controller
     
     public function destroy(User $usuario)
     {
+        // Verificar que el usuario tenga rol_id 1 o 2 antes de permitir eliminación
+        if (!in_array($usuario->rol_id, [1, 2])) {
+            return redirect()->route('admin.estatal.usuarios.index')
+                ->with('error', 'No tienes permisos para eliminar este usuario');
+        }
+        
         $usuario->delete();
         return redirect()->route('admin.estatal.usuarios.index')
             ->with('success', 'Usuario eliminado exitosamente');

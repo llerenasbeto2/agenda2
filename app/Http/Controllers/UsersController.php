@@ -15,7 +15,10 @@ class UsersController extends Controller
 {
     public function index(Request $request)
     {
-        \Log::info('Search request received:', ['name' => $request->name]);
+        \Log::info('Search request received:', [
+            'name' => $request->name,
+            'rol_filter' => $request->rol_filter
+        ]);
         
         $query = User::with([
             'rol',
@@ -28,10 +31,18 @@ class UsersController extends Controller
             }
         ]);
         
+        // Filtro por nombre
         if ($request->filled('name')) {
             $searchTerm = trim($request->input('name'));
             \Log::info('Applying filter for name:', ['searchTerm' => $searchTerm]);
             $query->where('name', 'like', '%' . $searchTerm . '%');
+        }
+        
+        // Filtro por rol
+        if ($request->filled('rol_filter')) {
+            $rolFilter = $request->input('rol_filter');
+            \Log::info('Applying filter for rol:', ['rolFilter' => $rolFilter]);
+            $query->where('rol_id', $rolFilter);
         }
         
         $users = $query->get()->map(function ($user) {
@@ -51,7 +62,7 @@ class UsersController extends Controller
         
         return Inertia::render('Admin/General/Users/Index', [
             'users' => $users,
-            'filters' => $request->only('name')
+            'filters' => $request->only(['name', 'rol_filter'])
         ]);
     }
 
