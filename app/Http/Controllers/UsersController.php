@@ -10,6 +10,7 @@ use App\Models\Municipality;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
 class UsersController extends Controller
 {
@@ -145,13 +146,33 @@ class UsersController extends Controller
             ],
         ]);
 
-        $usuario->update([
-            'name' => $request->name,
-            'email' => $request->email,
-            'municipality_id' => $request->municipality_id,
-            'rol_id' => $request->rol_id,
-            'responsible_id' => $request->responsible_id,
-        ]);
+        DB::transaction(function () use ($request, $usuario) {
+            // Obtener valores anteriores para comparar cambios
+            $oldResponsibleId = $usuario->responsible_id;
+            $oldRol = $usuario->rol;
+
+            // Actualizar el usuario
+            $usuario->update([
+                'name' => $request->name,
+                'email' => $request->email,
+                'municipality_id' => $request->municipality_id,
+                'rol_id' => $request->rol_id,
+                'responsible_id' => $request->responsible_id,
+            ]);
+
+            // NUEVA LÓGICA: Sincronizar con las tablas correspondientes
+            $newRol = rol::find($request->rol_id);
+
+            // Limpiar responsabilidades anteriores si cambió el responsible_id
+            if ($oldResponsibleId != $request->responsible_id) {
+                $this->clearPreviousResponsibilities($oldResponsibleId, $oldRol);
+            }
+
+            // Asignar nuevas responsabilidades
+            if ($request->responsible_id) {
+                $this->assignNewResponsibilities($request->responsible_id, $newRol, $usuario->id);
+            }
+        });
 
         return redirect()->route('admin.general.usuarios.index')
             ->with('success', 'Usuario actualizado exitosamente');
@@ -159,8 +180,63 @@ class UsersController extends Controller
 
     public function destroy(User $usuario)
     {
-        $usuario->delete();
+        DB::transaction(function () use ($usuario) {
+            // NUEVA LÓGICA: Limpiar responsabilidades antes de eliminar el usuario
+            if ($usuario->responsible_id) {
+                $this->clearPreviousResponsibilities($usuario->responsible_id, $usuario->rol);
+            }
+
+            $usuario->delete();
+        });
+
         return redirect()->route('admin.general.usuarios.index')
             ->with('success', 'Usuario eliminado exitosamente');
+    }
+
+    /**
+     * NUEVOS MÉTODOS AUXILIARES PARA MANEJAR SINCRONIZACIÓN
+     */
+    private function clearPreviousResponsibilities($responsibleId, $rol)
+    {
+        if (!$responsibleId || !$rol) return;
+
+        if ($rol->name === 'Administrador estatal') {
+            // Es responsable de una facultad
+            Faculty::where('responsible', $responsibleId)->update(['responsible' => null]);
+        } elseif ($rol->name === 'Administrador area') {
+            // Es responsable de un classroom
+            Classroom::where('responsible', $responsibleId)->update(['responsible' => null]);
+        }
+    }
+
+    private function assignNewResponsibilities($responsibleId, $rol, $userId)
+    {
+        if (!$responsibleId || !$rol) return;
+
+        if ($rol->name === 'Administrador estatal') {
+            // Es responsable de una facultad
+            $faculty = Faculty::find($responsibleId);
+            if ($faculty) {
+                // Limpiar responsable anterior si existe
+                if ($faculty->responsible && $faculty->responsible != $userId) {
+                    User::where('id', $faculty->responsible)
+                         ->where('id', '!=', $userId)
+                         ->update(['responsible_id' => null]);
+                }
+                $faculty->update(['responsible' => $userId]);
+            }
+        } elseif ($rol->name === 'Administrador area') {
+            // Es responsable de un classroom
+            $classroom = Classroom::find($responsibleId);
+            if ($classroom) {
+                // Limpiar responsable anterior si existe
+                if ($classroom->responsible && $classroom->responsible != $userId) {
+                    User::where('id', $classroom->responsible)
+                         ->where('id', '!=', $userId)
+                         ->update(['responsible_id' => null]);
+                }
+                $classroom->update(['responsible' => $userId]);
+            }
+        }
     }
 }

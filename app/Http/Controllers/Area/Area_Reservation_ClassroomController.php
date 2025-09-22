@@ -72,6 +72,11 @@ class Area_Reservation_ClassroomController extends Controller
             'municipalities' => Municipality::select('id', 'name')->get(),
             'auth' => [
                 'user' => [
+                    'id' => $user->id,
+        'name' => $user->name,
+        'email' => $user->email,                    // ¡Esto es lo que faltaba!
+        'municipality' => $user->municipality_id,
+        'responsible' => $user->responsible_id,  
                     'responsible' => $user->responsible_id,
                 ],
             ],

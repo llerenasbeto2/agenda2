@@ -171,7 +171,7 @@ const submit = () => {
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen*</label>
                                 <div class="flex space-x-4 mb-2">
                                     <label class="flex items-center">
                                         <input type="radio" v-model="form.image_option" value="url" class="mr-2" />
@@ -183,7 +183,7 @@ const submit = () => {
                                     </label>
                                 </div>
                                 <div v-if="form.image_option === 'url'">
-                                    <input id="image_url" type="url" v-model="form.image_url"
+                                    <input id="image_url" type="url" v-model="form.image_url" placeholder="Ingrese la URL de la imagen"
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                     <div v-if="form.errors.image_url" class="text-red-500 text-sm mt-1">{{ form.errors.image_url }}</div>
                                 </div>
@@ -192,6 +192,7 @@ const submit = () => {
                                         class="mt-1 block w-full" />
                                     <div v-if="form.errors.image_file" class="text-red-500 text-sm mt-1">{{ form.errors.image_file }}</div>
                                 </div>
+                                <div class="text-sm text-gray-500 mt-1">La imagen es obligatoria para crear la facultad.</div>
                             </div>
 
                             <div>
@@ -302,8 +303,6 @@ const submit = () => {
                                             </div>
                                         </div>
                                     </div>
-
-                            
 
                                     <button type="button" @click="removeClassroom(index)"
                                         class="mt-4 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">

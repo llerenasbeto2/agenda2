@@ -13,10 +13,10 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class EstatalFacultyController extends Controller
 {
-   
    
 public function index(Request $request)
 {
@@ -112,62 +112,70 @@ public function index(Request $request)
             'uses_db_storage' => 'required|boolean',
         ]);
 
-        $classroom = [
-            'faculty_id' => $faculty->id,
-            'name' => $validated['name'],
-            'capacity' => $validated['capacity'],
-            'services' => $validated['services'],
-            'responsible' => $validated['responsible'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'],
-            'uses_db_storage' => $validated['uses_db_storage'],
-        ];
+        DB::transaction(function () use ($validated, $faculty, $request) {
+            $classroom = [
+                'faculty_id' => $faculty->id,
+                'name' => $validated['name'],
+                'capacity' => $validated['capacity'],
+                'services' => $validated['services'],
+                'responsible' => $validated['responsible'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'uses_db_storage' => $validated['uses_db_storage'],
+            ];
 
-        if ($validated['image_option'] === 'upload' && $request->hasFile('image_file')) {
-            $classroom['image_url'] = null;
-            $classroom['image_path'] = $request->file('image_file')->store('classrooms', 'public');
-        } elseif ($validated['image_option'] === 'url') {
-            $classroom['image_url'] = $validated['image_url'];
-            $classroom['image_path'] = null;
-        } else {
-            $classroom['image_url'] = null;
-            $classroom['image_path'] = null;
-        }
+            if ($validated['image_option'] === 'upload' && $request->hasFile('image_file')) {
+                $classroom['image_url'] = null;
+                $classroom['image_path'] = $request->file('image_file')->store('classrooms', 'public');
+            } elseif ($validated['image_option'] === 'url') {
+                $classroom['image_url'] = $validated['image_url'];
+                $classroom['image_path'] = null;
+            } else {
+                $classroom['image_url'] = null;
+                $classroom['image_path'] = null;
+            }
 
-        classroom::create($classroom);
+            $createdClassroom = classroom::create($classroom);
+
+            // NUEVA LÓGICA: Actualizar tabla users si se asigna responsable de classroom
+            if ($validated['responsible']) {
+                $this->updateUserResponsibility($validated['responsible'], 'classroom', $createdClassroom->id);
+            }
+        });
 
         return redirect()->route('admin.estatal.faculties.index')
             ->with('success', 'Aula creada con éxito.');
     }
 
-public function createClassroom()
-{
-    $user = Auth::user();
-    $faculty = null;
+    public function createClassroom()
+    {
+        $user = Auth::user();
+        $faculty = null;
 
-    // Determinar la facultad según el rol del usuario
-    if ($user->rol_id === 3 && $user->responsible_id) {
-        $faculty = faculty::find($user->responsible_id);
-    } elseif ($user->rol_id === 2 && $user->faculty_id) {
-        $faculty = faculty::find($user->faculty_id);
+        // Determinar la facultad según el rol del usuario
+        if ($user->rol_id === 3 && $user->responsible_id) {
+            $faculty = faculty::find($user->responsible_id);
+        } elseif ($user->rol_id === 2 && $user->faculty_id) {
+            $faculty = faculty::find($user->faculty_id);
+        }
+
+        // Verificar que el usuario tenga una facultad asignada
+        if (!$faculty) {
+            return redirect()->route('admin.estatal.faculties.index')
+                ->with('error', 'No tienes una facultad asignada para crear aulas.');
+        }
+
+        // Obtener datos necesarios para el formulario
+        $municipality = Municipality::all(['id', 'name']);
+        $users = User::whereIn('rol_id', [2, 3])->get(['id', 'name', 'rol_id']);
+
+        return Inertia::render('Admin/Estatal/Faculties/Create', [
+            'faculty' => $faculty,
+            'municipality' => $municipality,
+            'users' => $users,
+        ]);
     }
 
-    // Verificar que el usuario tenga una facultad asignada
-    if (!$faculty) {
-        return redirect()->route('admin.estatal.faculties.index')
-            ->with('error', 'No tienes una facultad asignada para crear aulas.');
-    }
-
-    // Obtener datos necesarios para el formulario
-    $municipality = Municipality::all(['id', 'name']);
-    $users = User::whereIn('rol_id', [2, 3])->get(['id', 'name', 'rol_id']);
-
-    return Inertia::render('Admin/Estatal/Faculties/Create', [
-        'faculty' => $faculty,
-        'municipality' => $municipality,
-        'users' => $users,
-    ]);
-}
     public function editClassroom(classroom $classroom)
     {
         $user = Auth::user();
@@ -224,31 +232,48 @@ public function createClassroom()
             'uses_db_storage' => 'required|boolean',
         ]);
 
-        $classroom->fill([
-            'name' => $validated['name'],
-            'capacity' => $validated['capacity'],
-            'services' => $validated['services'],
-            'responsible' => $validated['responsible'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'],
-            'uses_db_storage' => $validated['uses_db_storage'],
-        ]);
+        DB::transaction(function () use ($validated, $classroom, $request) {
+            // Obtener el responsable anterior del classroom
+            $oldClassroomResponsible = $classroom->responsible;
 
-        if ($validated['image_option'] === 'upload' && $request->hasFile('image_file')) {
-            if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
-                Storage::disk('public')->delete($classroom->image_path);
-            }
-            $classroom->image_url = null;
-            $classroom->image_path = $request->file('image_file')->store('classrooms', 'public');
-        } elseif ($validated['image_option'] === 'url') {
-            if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
-                Storage::disk('public')->delete($classroom->image_path);
-            }
-            $classroom->image_url = $validated['image_url'];
-            $classroom->image_path = null;
-        }
+            $classroom->fill([
+                'name' => $validated['name'],
+                'capacity' => $validated['capacity'],
+                'services' => $validated['services'],
+                'responsible' => $validated['responsible'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'uses_db_storage' => $validated['uses_db_storage'],
+            ]);
 
-        $classroom->save();
+            if ($validated['image_option'] === 'upload' && $request->hasFile('image_file')) {
+                if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
+                    Storage::disk('public')->delete($classroom->image_path);
+                }
+                $classroom->image_url = null;
+                $classroom->image_path = $request->file('image_file')->store('classrooms', 'public');
+            } elseif ($validated['image_option'] === 'url') {
+                if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
+                    Storage::disk('public')->delete($classroom->image_path);
+                }
+                $classroom->image_url = $validated['image_url'];
+                $classroom->image_path = null;
+            }
+
+            $classroom->save();
+
+            // NUEVA LÓGICA: Manejar cambios de responsable de classroom
+            if ($oldClassroomResponsible != $validated['responsible']) {
+                // Limpiar el responsable anterior
+                if ($oldClassroomResponsible) {
+                    $this->clearUserResponsibility($oldClassroomResponsible, 'classroom');
+                }
+                // Asignar nuevo responsable
+                if ($validated['responsible']) {
+                    $this->updateUserResponsibility($validated['responsible'], 'classroom', $classroom->id);
+                }
+            }
+        });
 
         return redirect()->route('admin.estatal.faculties.index')
             ->with('success', 'Aula actualizada con éxito.');
@@ -270,14 +295,44 @@ public function createClassroom()
                 ->with('error', 'No tienes permisos para eliminar esta aula.');
         }
 
-        reservation_classroom::where('classroom_id', $classroom->id)->delete();
-        complaint_classroom::where('classroom_id', $classroom->id)->delete();
-        if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
-            Storage::disk('public')->delete($classroom->image_path);
-        }
-        $classroom->delete();
+        DB::transaction(function () use ($classroom) {
+            // NUEVA LÓGICA: Limpiar responsabilidad antes de eliminar
+            if ($classroom->responsible) {
+                $this->clearUserResponsibility($classroom->responsible, 'classroom');
+            }
+
+            reservation_classroom::where('classroom_id', $classroom->id)->delete();
+            complaint_classroom::where('classroom_id', $classroom->id)->delete();
+            if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
+                Storage::disk('public')->delete($classroom->image_path);
+            }
+            $classroom->delete();
+        });
 
         return redirect()->route('admin.estatal.faculties.index')
             ->with('success', 'Aula eliminada con éxito.');
+    }
+
+    /**
+     * NUEVOS MÉTODOS AUXILIARES PARA MANEJAR SINCRONIZACIÓN
+     */
+    private function updateUserResponsibility($userId, $type, $entityId)
+    {
+        $user = User::find($userId);
+        if ($user) {
+            if ($type === 'classroom') {
+                // Limpiar responsabilidades previas del usuario
+                $this->clearUserResponsibility($userId, 'all');
+                $user->update(['responsible_id' => $entityId]);
+            }
+        }
+    }
+
+    private function clearUserResponsibility($userId, $type = 'all')
+    {
+        $user = User::find($userId);
+        if ($user) {
+            $user->update(['responsible_id' => null]);
+        }
     }
 }

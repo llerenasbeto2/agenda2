@@ -2,13 +2,8 @@
 import AdminGeneralLayout from '@/Layouts/AdminGeneralLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 
-const props = defineProps({
-    municipalities: Array // Nuevo prop para recibir municipios
-});
-
 const form = useForm({
-    name: '',
-    municipality_id: '' // Nuevo campo para el municipio
+    name: ''
 });
 
 const submit = () => {
@@ -41,23 +36,6 @@ const submit = () => {
                                     required
                                 >
                                 <div v-if="form.errors.name" class="text-red-500 mt-1 text-sm">{{ form.errors.name }}</div>
-                            </div>
-                            
-                            <!-- Selector de municipio -->
-                            <div class="mb-4">
-                                <label for="municipality" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Municipio</label>
-                                <select 
-                                    id="municipality" 
-                                    v-model="form.municipality_id" 
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    required
-                                >
-                                    <option value="" disabled>Seleccione un municipio</option>
-                                    <option v-for="municipality in municipalities" :key="municipality.id" :value="municipality.id">
-                                        {{ municipality.name }}
-                                    </option>
-                                </select>
-                                <div v-if="form.errors.municipality_id" class="text-red-500 mt-1 text-sm">{{ form.errors.municipality_id }}</div>
                             </div>
 
                             <div class="flex items-center justify-end mt-4">

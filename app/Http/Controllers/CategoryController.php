@@ -1,46 +1,36 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use App\Models\Categorie;
-use App\Models\Municipality;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+
 class CategoryController extends Controller
 {
     public function index()
     {
-        // Obtener todas las categorías con información de municipio
+        // Obtener todas las categorías
         $categories = Categorie::all();
         
-        // Obtener todos los municipios para el selector
-        $municipalities = Municipality::all();
-        
         return Inertia::render('Admin/General/Categories/Index', [
-            'categories' => $categories,
-            'municipalities' => $municipalities
+            'categories' => $categories
         ]);
     }
 
     public function create()
     {
-        // Obtener todos los municipios para poder seleccionar uno al crear
-        $municipalities = Municipality::all();
-        
-        return Inertia::render('Admin/General/Categories/Create', [
-            'municipalities' => $municipalities
-        ]);
+        return Inertia::render('Admin/General/Categories/Create');
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|max:100|unique:categories,name',
-            'municipality_id' => 'required|exists:municipality,id' // Validar el municipio seleccionado
+            'name' => 'required|max:100|unique:categories,name'
         ]);
     
         Categorie::create([
-            'name' => $validated['name'],
-            'municipality_id' => $validated['municipality_id']
+            'name' => $validated['name']
         ]);
     
         return redirect()->route('admin.general.categories.index');
@@ -48,20 +38,15 @@ class CategoryController extends Controller
 
     public function edit(Categorie $category)
     {
-        // Obtener todos los municipios para poder editar el municipio de la categoría
-        $municipalities = Municipality::all();
-        
         return Inertia::render('Admin/General/Categories/Edit', [
-            'category' => $category,
-            'municipalities' => $municipalities
+            'category' => $category
         ]);
     }
 
     public function update(Request $request, Categorie $category)
     {
         $validated = $request->validate([
-            'name' => 'required|max:100',
-            'municipality_id' => 'required|exists:municipality,id' // Validar el municipio seleccionado
+            'name' => 'required|max:100'
         ]);
 
         $category->update($validated);
