@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Estatal;
+
 use App\Http\Controllers\Controller;
 use App\Models\Categorie;
 use App\Models\Municipality;
@@ -28,17 +29,12 @@ class EstatalCategoryController extends Controller
         $validated = $request->validate([
             'name' => 'required|max:100|unique:categories,name',
         ]);
-    
-        // Selecciona un municipio al azar
-       // $randomMunicipality = Municipality::inRandomOrder()->first();
-       $municipality_id = auth()->user()->municipality_id;
-    
-        Categorie::create([
 
+        // Ya no usamos municipality_id
+        Categorie::create([
             'name' => $validated['name'],
-            'municipality_id' => $municipality_id,
         ]);
-    
+
         return redirect()->route('admin.estatal.categories.index');
     }
 
@@ -56,7 +52,6 @@ class EstatalCategoryController extends Controller
         ]);
 
         $category->update($validated);
-
         return redirect()->route('admin.estatal.categories.index');
     }
 

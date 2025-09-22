@@ -6,7 +6,8 @@ import { ref, watch } from 'vue';
 const props = defineProps({
     users: Array,
     roles: Array,
-    filters: Object
+    filters: Object,
+    debugInfo: Object // Opcional para debugging
 });
 
 const destroy = (id) => {
@@ -68,6 +69,17 @@ const getRoleName = (rolId) => {
             return 'Sin rol';
     }
 };
+
+const getRoleBadgeClass = (rolId) => {
+    switch (rolId) {
+        case 1:
+            return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+        case 2:
+            return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+        default:
+            return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+    }
+};
 </script>
 
 <template>
@@ -82,6 +94,8 @@ const getRoleName = (rolId) => {
        
         <div class="py-12">
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+              
+                
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
                     <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
@@ -102,8 +116,6 @@ const getRoleName = (rolId) => {
                                 <!-- Filtro por tipo de rol -->
                                 <div class="flex items-center">
                                     <select 
-
-                                        placeholder="seleccione una opcion"
                                         v-model="filters.rol_filter"
                                         class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 min-w-[180px]"
                                     >
@@ -122,50 +134,95 @@ const getRoleName = (rolId) => {
                                     Limpiar
                                 </button>
                             </div>
+
+                            <!-- Botón crear nuevo usuario -->
+                            <Link 
+                                :href="route('admin.estatal.usuarios.create')" 
+                                class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition whitespace-nowrap"
+                            >
+                                Nuevo Usuario
+                            </Link>
                         </div>
 
-                        
+                        <!-- Información sobre los usuarios mostrados -->
+                        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                            <p>Mostrando {{ users.length }} usuario(s)</p>
+                        </div>
 
-                        <table class="min-w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden mt-4">
-                            <thead>
-                                <tr class="bg-gray-100 dark:bg-gray-600 border-b dark:border-gray-500">
-                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Nombre</th>
-                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Email</th>
-                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Tipo</th>
-                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Responsable</th>
-                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Municipio</th>
-                                    <th class="py-2 px-4 text-left text-gray-700 dark:text-gray-200">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="user in users" :key="user.id" class="border-b dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                    <td class="py-2 px-4 text-gray-800 dark:text-gray-200">{{ user.name }}</td>
-                                    <td class="py-2 px-4 text-gray-800 dark:text-gray-200">{{ user.email }}</td>
-                                    <td class="py-2 px-4 text-gray-800 dark:text-gray-200">
-                                        <span :class="{
-                                            'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': user.rol_id === 1,
-                                            'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200': user.rol_id === 2
-                                        }" class="px-2 py-1 rounded-full text-xs font-semibold">
-                                            {{ getRoleName(user.rol_id) }}
-                                        </span>
-                                    </td>
-                                    <td class="py-2 px-4 text-gray-800 dark:text-gray-200">{{ user.responsible || '-' }}</td>
-                                    <td class="py-2 px-4 text-gray-800 dark:text-gray-200">{{ user.municipality || '-' }}</td>
-                                    <td class="py-2 px-4 flex gap-2">
-                                        <Link :href="route('admin.estatal.usuarios.edit', user.id)" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded">Editar</Link>
-                                        <button @click="destroy(user.id)" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded">Eliminar</button>
-                                    </td>
-                                </tr>
-                                <tr v-if="users.length === 0" class="border-b dark:border-gray-600">
-                                    <td colspan="6" class="py-4 px-4 text-center text-gray-800 dark:text-gray-200">
-                                        No hay usuarios para mostrar
-                                        <span v-if="filters.name || filters.rol_filter" class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                            Intenta cambiar los filtros de búsqueda
-                                        </span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                        <!-- Tabla de usuarios -->
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                                <thead>
+                                    <tr class="bg-gray-100 dark:bg-gray-600 border-b dark:border-gray-500">
+                                        <th class="py-3 px-4 text-left text-gray-700 dark:text-gray-200 font-semibold">Nombre</th>
+                                        <th class="py-3 px-4 text-left text-gray-700 dark:text-gray-200 font-semibold">Email</th>
+                                        <th class="py-3 px-4 text-left text-gray-700 dark:text-gray-200 font-semibold">Tipo</th>
+                                        <th class="py-3 px-4 text-left text-gray-700 dark:text-gray-200 font-semibold">Responsable de</th>
+                                        <th class="py-3 px-4 text-left text-gray-700 dark:text-gray-200 font-semibold">Municipio</th>
+                                        <th class="py-3 px-4 text-left text-gray-700 dark:text-gray-200 font-semibold">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="user in users" :key="user.id" class="border-b dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+                                        <td class="py-3 px-4 text-gray-800 dark:text-gray-200">{{ user.name }}</td>
+                                        <td class="py-3 px-4 text-gray-800 dark:text-gray-200">{{ user.email }}</td>
+                                        <td class="py-3 px-4">
+                                            <span 
+                                                :class="getRoleBadgeClass(user.rol_id)" 
+                                                class="px-2 py-1 rounded-full text-xs font-semibold"
+                                            >
+                                                {{ getRoleName(user.rol_id) }}
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-4 text-gray-800 dark:text-gray-200">
+                                            <span v-if="user.responsible && user.responsible !== 'Sin aula'" class="font-medium">
+                                                {{ user.responsible }}
+                                            </span>
+                                            <span v-else class="text-gray-500 dark:text-gray-400 italic">
+                                                {{ user.responsible }}
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-4 text-gray-800 dark:text-gray-200">
+                                            <span v-if="user.municipality && user.municipality !== 'Sin municipio'">
+                                                {{ user.municipality }}
+                                            </span>
+                                            <span v-else class="text-gray-500 dark:text-gray-400 italic">
+                                                {{ user.municipality }}
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex gap-2">
+                                                <Link 
+                                                    :href="route('admin.estatal.usuarios.edit', user.id)" 
+                                                    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm transition"
+                                                >
+                                                    Editar
+                                                </Link>
+                                                <button 
+                                                    @click="destroy(user.id)" 
+                                                    class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm transition"
+                                                >
+                                                    Eliminar
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="users.length === 0" class="border-b dark:border-gray-600">
+                                        <td colspan="6" class="py-8 px-4 text-center text-gray-800 dark:text-gray-200">
+                                            <div class="flex flex-col items-center">
+                                                <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                                                </svg>
+                                                <p class="text-lg font-medium mb-1">No hay usuarios para mostrar</p>
+                                                <p v-if="filters.name || filters.rol_filter" class="text-sm text-gray-500 dark:text-gray-400">
+                                                    Intenta cambiar los filtros de búsqueda
+                                                </p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
