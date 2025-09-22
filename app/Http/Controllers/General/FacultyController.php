@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\General;
 
 use App\Http\Controllers\Controller;
-use App\Models\Faculty;
-use App\Models\Classroom;
+use App\Models\faculty;
+use App\Models\classroom;
 use App\Models\Municipality;
-use App\Models\Complaint_classroom;
-use App\Models\Reservation_classroom;
+use App\Models\complaint_classroom;
+use App\Models\reservation_classroom;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -24,7 +24,7 @@ class FacultyController extends Controller
         $users = User::whereIn('rol_id', [2, 3])->get(['id', 'name', 'rol_id']);
 
         // Cargar todas las facultades sin filtrar por municipality_id
-        $faculties = Faculty::with(['classrooms', 'responsibleUser'])->get();
+        $faculties = faculty::with(['classrooms', 'responsibleUser'])->get();
 
         return Inertia::render('Admin/General/Faculties/Index', [
             'faculties' => $faculties,
@@ -115,7 +115,7 @@ class FacultyController extends Controller
                 $data['image'] = $request->image_url;
             }
 
-            $faculty = Faculty::create($data);
+            $faculty = faculty::create($data);
 
             // NUEVA LÓGICA: Actualizar tabla users si se asigna responsable de facultad
             if ($request->responsible) {
@@ -156,7 +156,7 @@ class FacultyController extends Controller
         return redirect()->route('admin.general.faculties.index')->with('success', 'Facultad creada con éxito.');
     }
 
-    public function edit(Faculty $faculty)
+    public function edit(faculty $faculty)
     {
         $faculty->load('classrooms');
         $municipalities = Municipality::all();
@@ -169,7 +169,7 @@ class FacultyController extends Controller
         ]);
     }
 
-    public function update(Request $request, Faculty $faculty)
+    public function update(Request $request, faculty $faculty)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -250,15 +250,15 @@ class FacultyController extends Controller
 
                 $classroomsToDelete = array_diff($existingClassroomIds, $submittedClassroomIds);
                 foreach ($classroomsToDelete as $classroomId) {
-                    $classroom = Classroom::find($classroomId);
+                    $classroom = classroom::find($classroomId);
                     if ($classroom) {
                         // NUEVA LÓGICA: Limpiar responsabilidad antes de eliminar
                         if ($classroom->responsible) {
                             $this->clearUserResponsibility($classroom->responsible, 'classroom');
                         }
 
-                        Reservation_classroom::where('classroom_id', $classroomId)->delete();
-                        Complaint_classroom::where('classroom_id', $classroomId)->delete();
+                        reservation_classroom::where('classroom_id', $classroomId)->delete();
+                        complaint_classroom::where('classroom_id', $classroomId)->delete();
                         
                         if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
                             Storage::disk('public')->delete($classroom->image_path);
@@ -280,7 +280,7 @@ class FacultyController extends Controller
 
                     if ($classroomData['image_option'] === 'upload' && isset($classroomData['image_file'])) {
                         if (isset($classroomData['id'])) {
-                            $existingClassroom = Classroom::find($classroomData['id']);
+                            $existingClassroom = classroom::find($classroomData['id']);
                             if ($existingClassroom && $existingClassroom->image_path) {
                                 Storage::disk('public')->delete($existingClassroom->image_path);
                             }
@@ -289,7 +289,7 @@ class FacultyController extends Controller
                         $classroom['image_path'] = $classroomData['image_file']->store('classrooms', 'public');
                     } elseif ($classroomData['image_option'] === 'url') {
                         if (isset($classroomData['id'])) {
-                            $existingClassroom = Classroom::find($classroomData['id']);
+                            $existingClassroom = classroom::find($classroomData['id']);
                             if ($existingClassroom && $existingClassroom->image_path) {
                                 Storage::disk('public')->delete($existingClassroom->image_path);
                             }
@@ -300,10 +300,10 @@ class FacultyController extends Controller
 
                     if (isset($classroomData['id']) && $classroomData['id']) {
                         // Actualizar classroom existente
-                        $existingClassroom = Classroom::find($classroomData['id']);
+                        $existingClassroom = classroom::find($classroomData['id']);
                         $oldClassroomResponsible = $existingClassroom ? $existingClassroom->responsible : null;
 
-                        Classroom::where('id', $classroomData['id'])->update($classroom);
+                        classroom::where('id', $classroomData['id'])->update($classroom);
 
                         // NUEVA LÓGICA: Manejar cambios de responsable
                         if ($oldClassroomResponsible != $classroomData['responsible']) {
@@ -333,7 +333,7 @@ class FacultyController extends Controller
             ->with('success', 'Facultad actualizada con éxito.');
     }
 
-    public function destroy(Faculty $faculty)
+    public function destroy(faculty $faculty)
     {
         DB::transaction(function () use ($faculty) {
             foreach ($faculty->classrooms as $classroom) {
@@ -342,8 +342,8 @@ class FacultyController extends Controller
                     $this->clearUserResponsibility($classroom->responsible, 'classroom');
                 }
 
-                Reservation_classroom::where('classroom_id', $classroom->id)->delete();
-                Complaint_classroom::where('classroom_id', $classroom->id)->delete();
+                reservation_classroom::where('classroom_id', $classroom->id)->delete();
+                complaint_classroom::where('classroom_id', $classroom->id)->delete();
                 if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
                     Storage::disk('public')->delete($classroom->image_path);
                 }
