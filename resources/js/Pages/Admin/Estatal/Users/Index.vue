@@ -135,13 +135,14 @@ const getRoleBadgeClass = (rolId) => {
                                 </button>
                             </div>
 
-                            <!-- Botón crear nuevo usuario -->
+                            <!-- Botón crear nuevo usuario 
                             <Link 
                                 :href="route('admin.estatal.usuarios.create')" 
                                 class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition whitespace-nowrap"
                             >
                                 Nuevo Usuario
                             </Link>
+                        -->
                         </div>
 
                         <!-- Información sobre los usuarios mostrados -->

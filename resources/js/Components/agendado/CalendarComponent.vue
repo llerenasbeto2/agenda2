@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue';
 import axios from 'axios';
+import Excel_component from './Excel_component.vue';
 
 const props = defineProps({
   initialDate: String,
@@ -33,6 +34,7 @@ const repetitionCount = ref(null);
 const create_events = ref([]); // Array local para eventos del usuario
 const existing_reservations = ref([]); // Array para reservaciones existentes en BD
 const isLoadingReservations = ref(false);
+const isImporting = ref(false); // Nuevo estado para loader durante importación de Excel
 const conflictMessage = ref('');
 
 const timeOptions = ref([
@@ -152,7 +154,6 @@ const selectDay = (dayIndex) => {
   }
 };
 
-
 const openModal = (day, initialTime = null, eventIndex = null) => {
   selectedDay.value = day;
   modalInitialTime.value = initialTime;
@@ -268,7 +269,6 @@ const nthWeekdayOfMonth = (weekday, n, date) => {
 // Variable para almacenar conflictos detectados
 const detectedConflicts = ref([]);
 
-// Función saveTime modificada para CalendarComponent.vue
 // Variable para rastrear si estamos editando un evento existente
 const editingEventIndex = ref(null);
 
@@ -289,7 +289,6 @@ const saveTime = async () => {
   const recurringData = {
     is_recurring: isRecurring.value,
     recurring_days: isRecurring.value && recurringDays.value.length > 0 ? JSON.stringify(
-      // Asegurar que sea un array válido
       Array.isArray(recurringDays.value) ? 
         recurringDays.value.sort((a, b) => {
           const order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -522,14 +521,13 @@ if (recurringFrequency.value === 'weekly') {
   let global_recurring_frequency = null;
   let global_repeticion = null;
 
-  // Buscar el último evento repetido en create_events    Aqui se modifica el array
+  // Buscar el último evento repetido en create_events
 for (let i = create_events.value.length - 1; i >= 0; i--) {
   const eventKey = `event_${i + 1}`;
   const event = create_events.value[i][eventKey];
   if (event.recurring_days !== null) {
     global_is_recurring = true;
-    // CORRECCIÓN: Asegurar que recurring_days siempre sea un string JSON
-    global_recurring_days = event.recurring_days; // Ya es string porque así se guardó
+    global_recurring_days = event.recurring_days;
     global_recurring_frequency = event.recurring_frequency;
     global_repeticion = event.repeticion;
     break;
@@ -550,7 +548,7 @@ for (let i = create_events.value.length - 1; i >= 0; i--) {
     recurring_days: global_recurring_days,
     recurring_frequency: global_recurring_frequency,
     repeticion: global_repeticion,
-    irregular_dates: JSON.stringify(consolidated_irregular_dates) // Array consolidado
+    irregular_dates: JSON.stringify(consolidated_irregular_dates)
   });
 
   updateCalendarEvents();
@@ -598,8 +596,7 @@ for (let i = create_events.value.length - 1; i >= 0; i--) {
   const event = create_events.value[i][eventKey];
   if (event.recurring_days !== null) {
     global_is_recurring = true;
-    // CORRECCIÓN: Asegurar que recurring_days siempre sea un string JSON
-    global_recurring_days = event.recurring_days; // Ya es string porque así se guardó
+    global_recurring_days = event.recurring_days;
     global_recurring_frequency = event.recurring_frequency;
     global_repeticion = event.repeticion;
     break;
@@ -628,7 +625,7 @@ for (let i = create_events.value.length - 1; i >= 0; i--) {
       recurring_days: global_recurring_days,
       recurring_frequency: global_recurring_frequency,
       repeticion: global_repeticion,
-      irregular_dates: JSON.stringify(consolidated_irregular_dates) // Array consolidado actualizado
+      irregular_dates: JSON.stringify(consolidated_irregular_dates)
     });
   } else {
     // Si no quedan eventos, enviar datos vacíos
@@ -637,7 +634,7 @@ for (let i = create_events.value.length - 1; i >= 0; i--) {
       recurring_days: null,
       recurring_frequency: null,
       repeticion: null,
-      irregular_dates: JSON.stringify([]) // Array vacío
+      irregular_dates: JSON.stringify([])
     });
   }
 
@@ -770,7 +767,7 @@ onMounted(() => {
         hiddenDays: [0, 6],
         selectable: true,
         select: handleSelect,
-        height: 580, // Altura fija compacta
+        height: 'auto',
         initialDate: props.initialDate || new Date().toISOString().split('T')[0],
         events: [],
         eventClick: function(info) {
@@ -801,6 +798,114 @@ onUnmounted(() => {
     calendar = null;
   }
 });
+
+const handleExcelEventsUpdate = async (updatedEvents) => {
+  isImporting.value = true; // Iniciar loader
+  console.log('Eventos actualizados desde Excel:', updatedEvents);
+  
+  // Actualizar el array local
+  create_events.value = [...updatedEvents];
+  
+  // Verificar conflictos para los nuevos eventos
+  for (let i = 0; i < create_events.value.length; i++) {
+    const eventObj = create_events.value[i];
+    const eventKey = `event_${i + 1}`;
+    const event = eventObj[eventKey];
+    
+    if (event && !event.has_conflicts) { // Solo verificar eventos que no han sido verificados
+      let datesToCheck = [];
+      
+      if (event.irregular_dates) {
+        // Si tiene fechas irregulares, usar esas
+        const irregularDates = JSON.parse(event.irregular_dates);
+        datesToCheck = irregularDates.map(irregular => ({
+          date: irregular.date,
+          start_time: irregular.startTime,
+          end_time: irregular.endTime
+        }));
+      } else {
+        // Si no, usar la fecha principal
+        const dateStr = event.start_datetime.split(' ')[0];
+        const startTime = event.start_datetime.split(' ')[1].substring(0, 5);
+        const endTime = event.end_datetime.split(' ')[1].substring(0, 5);
+        
+        datesToCheck = [{
+          date: dateStr,
+          start_time: startTime,
+          end_time: endTime
+        }];
+      }
+      
+      // Verificar conflictos
+      const conflictCheck = await checkForConflicts(datesToCheck);
+      if (conflictCheck.has_conflicts) {
+        // Actualizar el evento con información de conflictos
+        event.has_conflicts = true;
+        detectedConflicts.value = [...detectedConflicts.value, ...conflictCheck.conflicts];
+      }
+    }
+  }
+  
+  // Consolidar datos para emitir al padre
+  let consolidated_irregular_dates = [];
+  create_events.value.forEach((eventObj, index) => {
+    const eventKey = `event_${index + 1}`;
+    const event = eventObj[eventKey];
+    if (event.irregular_dates) {
+      const eventDates = JSON.parse(event.irregular_dates);
+      consolidated_irregular_dates = consolidated_irregular_dates.concat(eventDates);
+    }
+  });
+
+  // Determinar datos de repetición basados en el último evento repetido
+  let global_is_recurring = false;
+  let global_recurring_days = null;
+  let global_recurring_frequency = null;
+  let global_repeticion = null;
+
+  for (let i = create_events.value.length - 1; i >= 0; i--) {
+    const eventKey = `event_${i + 1}`;
+    const event = create_events.value[i][eventKey];
+    if (event.recurring_days !== null) {
+      global_is_recurring = true;
+      global_recurring_days = event.recurring_days;
+      global_recurring_frequency = event.recurring_frequency;
+      global_repeticion = event.repeticion;
+      break;
+    }
+  }
+
+  // Emitir eventos actualizados al padre
+  emitEventsUpdate();
+
+  // Emitir datos consolidados
+  if (create_events.value.length > 0) {
+    const lastEvent = create_events.value[create_events.value.length - 1];
+    const lastEventKey = Object.keys(lastEvent)[0];
+    const lastEventData = lastEvent[lastEventKey];
+    const lastEventDate = lastEventData.start_datetime.split(' ')[0];
+    const lastEventStartTime = lastEventData.start_datetime.split(' ')[1].substring(0, 5);
+    const lastEventEndTime = lastEventData.end_datetime.split(' ')[1].substring(0, 5);
+
+    emit('update-form', lastEventDate, lastEventStartTime, lastEventEndTime, {
+      is_recurring: global_is_recurring,
+      recurring_days: global_recurring_days,
+      recurring_frequency: global_recurring_frequency,
+      repeticion: global_repeticion,
+      irregular_dates: JSON.stringify(consolidated_irregular_dates)
+    });
+  }
+
+  // Actualizar el calendario
+  updateCalendarEvents();
+
+  isImporting.value = false; // Finalizar loader
+};
+
+const clearDetectedConflicts = () => {
+  detectedConflicts.value = [];
+};
+
 </script>
 
 <style scoped>
@@ -1072,38 +1177,45 @@ onUnmounted(() => {
 }
 </style>
 
+
 <template>
   <div class="flex space-x-6">
-    <!-- Columna izquierda: Selección de días -->
-    <div class="w-1/4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-200 mb-4">Seleccionar Día</h3>
-      
-      <!-- Indicador de carga -->
-      <div v-if="isLoadingReservations" class="flex items-center justify-center p-4">
-        <div class="loading-spinner"></div>
-        <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Cargando reservaciones...</span>
-      </div>
-      
-      <!-- Mensaje si no hay aula seleccionada -->
-      <div v-else-if="!classroomId" class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-        Seleccione un aula en el paso anterior para ver disponibilidad
-      </div>
-      
-      <!-- Botones de días -->
-      <div v-else class="space-y-2">
-        <button
-          v-for="(day, index) in getCurrentWeekDates"
-          :key="day"
-          @click="openModal(day)"
-          class="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-indigo-700 dark:hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="!classroomId"
-        >
-          {{ day.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' }) }}
-        </button>
+    <!-- Columna izquierda: Selección de días + Excel + Leyenda -->
+    <div class="w-1/4 space-y-4">
+      <!-- Sección: Seleccionar Día -->
+      <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-200 mb-4">Seleccionar Día</h3>
+        
+        <!-- Indicador de carga -->
+        <div v-if="isLoadingReservations" class="flex items-center justify-center p-4">
+          <div class="loading-spinner"></div>
+          <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Cargando reservaciones...</span>
+        </div>
+        
+        <!-- Mensaje si no hay aula seleccionada -->
+        <div v-else-if="!classroomId" class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+          Seleccione un aula en el paso anterior para ver disponibilidad
+        </div>
+        
+        <!-- Botones de días -->
+        <div v-else class="space-y-2">
+          <button
+            v-for="(day, index) in getCurrentWeekDates"
+            :key="day"
+            @click="openModal(day)"
+            class="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-indigo-700 dark:hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="!classroomId"
+          >
+            {{ day.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' }) }}
+          </button>
+        </div>
       </div>
 
+      <!-- Componente de Excel (ahora debajo de Seleccionar Día) -->
+      
+
       <!-- Leyenda y alertas de conflictos -->
-      <div v-if="classroomId" class="mt-4">
+      <div v-if="classroomId" class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
         <!-- Leyenda -->
         <div class="text-xs mb-3">
           <div class="flex items-center mb-1">
@@ -1115,7 +1227,12 @@ onUnmounted(() => {
             <span class="text-gray-600 dark:text-gray-400">Reservas existentes</span>
           </div>
         </div>
-        
+        <Excel_component
+        v-model:create_events="create_events"
+        @edit-event="editEvent"
+        @delete-event="deleteEvent"
+        @update:create_events="handleExcelEventsUpdate"
+      />
         <!-- Alerta de conflictos globales -->
         <div v-if="detectedConflicts.length > 0" class="conflict-alert mb-4">
           <div class="flex items-start">
@@ -1142,14 +1259,16 @@ onUnmounted(() => {
 
     <!-- Columna derecha: Calendario -->
     <div class="w-3/4 dark:text-gray-400">
-<div class="calendar-wrapper">
-  <div ref="calendarEl"></div>
-</div>
-      
+      <div ref="calendarEl"></div>
+     
       <!-- Sección de Días a Solicitar -->
       <div class="mt-4">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-200 mb-2">Días a Solicitar</h3>
-        <div v-if="create_events.length > 0" class="space-y-2">
+        <div v-if="isImporting" class="flex items-center justify-center p-4">
+          <div class="loading-spinner"></div>
+          <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Cargando reservaciones...</span>
+        </div>
+        <div v-else-if="create_events.length > 0" class="space-y-2">
           <div v-for="(eventObj, index) in create_events" :key="index" 
                class="reservation-item"
                :class="{ 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-900': eventObj[`event_${index + 1}`].has_conflicts }">

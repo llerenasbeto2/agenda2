@@ -22,7 +22,6 @@ const form = useForm({
     image_option: props.faculty.image ? (props.faculty.image.includes('http') ? 'url' : 'upload') : 'url',
     image_url: props.faculty.image && props.faculty.image.includes('http') ? props.faculty.image : '',
     image_file: null,
-    // capacity eliminado del formulario
 });
 
 const classrooms = ref(props.faculty.classrooms.map(classroom => ({
@@ -56,7 +55,21 @@ const addClassroom = () => {
 };
 
 const removeClassroom = (index) => {
+    const classroom = classrooms.value[index];
+    
+    console.log('Eliminando classroom en índice:', index);
+    console.log('Classroom data:', classroom);
+    console.log('Classroom ID:', classroom.id);
+    
+    if (classroom.id) {
+        if (!confirm(`¿Estás seguro de que quieres eliminar el aula "${classroom.name}"? Esta acción no se puede deshacer.`)) {
+            return;
+        }
+    }
+    
     classrooms.value.splice(index, 1);
+    
+    console.log('Classrooms restantes:', classrooms.value.map(c => ({ id: c.id, name: c.name })));
 };
 
 const handleImageFile = (event, target) => {
@@ -68,7 +81,6 @@ const handleImageFile = (event, target) => {
 const submit = () => {
     const formData = new FormData();
     
-    // Add faculty data
     formData.append('_method', 'PUT');
     formData.append('name', form.name);
     formData.append('location', form.location);
@@ -81,31 +93,46 @@ const submit = () => {
     formData.append('web_site', form.web_site);
     formData.append('image_option', form.image_option);
     
-    // Handle faculty image
     if (form.image_option === 'upload' && form.image_file) {
         formData.append('image_file', form.image_file);
     } else if (form.image_option === 'url') {
         formData.append('image_url', form.image_url);
     }
     
-    // Add classrooms data
-    classrooms.value.forEach((classroom, index) => {
-        formData.append(`classrooms[${index}][id]`, classroom.id || '');
-        formData.append(`classrooms[${index}][name]`, classroom.name);
-        formData.append(`classrooms[${index}][capacity]`, classroom.capacity);
-        formData.append(`classrooms[${index}][services]`, classroom.services);
-        formData.append(`classrooms[${index}][responsible]`, classroom.responsible);
-        formData.append(`classrooms[${index}][email]`, classroom.email);
-        formData.append(`classrooms[${index}][phone]`, classroom.phone);
-        formData.append(`classrooms[${index}][uses_db_storage]`, classroom.uses_db_storage ? '1' : '0');
-        formData.append(`classrooms[${index}][image_option]`, classroom.image_option);
-        
-        if (classroom.image_option === 'upload' && classroom.image_file) {
-            formData.append(`classrooms[${index}][image_file]`, classroom.image_file);
-        } else if (classroom.image_option === 'url') {
-            formData.append(`classrooms[${index}][image_url]`, classroom.image_url);
-        }
-    });
+    console.log('=== DEBUGGING SUBMIT ===');
+    console.log('Original faculty classrooms:', props.faculty.classrooms.map(c => ({ id: c.id, name: c.name })));
+    console.log('Current classrooms in array:', classrooms.value.map(c => ({ id: c.id, name: c.name })));
+    console.log('Number of original classrooms:', props.faculty.classrooms.length);
+    console.log('Number of current classrooms:', classrooms.value.length);
+    
+    if (classrooms.value.length > 0) {
+        classrooms.value.forEach((classroom, index) => {
+            console.log(`Agregando classroom ${index}:`, { id: classroom.id, name: classroom.name });
+            
+            if (classroom.id) {
+                formData.append(`classrooms[${index}][id]`, String(classroom.id));
+            } else {
+                formData.append(`classrooms[${index}][id]`, '');
+            }
+            
+            formData.append(`classrooms[${index}][name]`, classroom.name);
+            formData.append(`classrooms[${index}][capacity]`, classroom.capacity);
+            formData.append(`classrooms[${index}][services]`, classroom.services);
+            formData.append(`classrooms[${index}][responsible]`, classroom.responsible || '');
+            formData.append(`classrooms[${index}][email]`, classroom.email || '');
+            formData.append(`classrooms[${index}][phone]`, classroom.phone || '');
+            formData.append(`classrooms[${index}][uses_db_storage]`, classroom.uses_db_storage ? '1' : '0');
+            formData.append(`classrooms[${index}][image_option]`, classroom.image_option);
+            
+            if (classroom.image_option === 'upload' && classroom.image_file) {
+                formData.append(`classrooms[${index}][image_file]`, classroom.image_file);
+            } else if (classroom.image_option === 'url') {
+                formData.append(`classrooms[${index}][image_url]`, classroom.image_url || '');
+            }
+        });
+    }
+    
+    console.log('=== FIN DEBUGGING ===');
     
     router.post(route('admin.general.faculties.update', props.faculty.id), formData, {
         preserveState: true,
@@ -237,7 +264,12 @@ const submit = () => {
                                 <button type="button" @click="addClassroom" class="inline-block mb-4 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700">
                                     Agregar Aula
                                 </button>
+                                
                                 <div v-for="(classroom, index) in classrooms" :key="index" class="border p-4 rounded-lg mb-4">
+                                    <div class="mb-2 text-xs text-gray-500">
+                                        ID del aula: {{ classroom.id || 'Nueva aula' }}
+                                    </div>
+                                    
                                     <div>
                                         <label :for="'classroom_name_' + index" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Nombre del Aula</label>
                                         <input :id="'classroom_name_' + index" type="text" v-model="classroom.name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
@@ -299,18 +331,17 @@ const submit = () => {
                                         </div>
                                     </div>
                                     <div>
-                                       
                                         <input :id="'classroom_uses_db_storage_' + index" type="checkbox" v-model="classroom.uses_db_storage" class="mt-1 rounded border-gray-300 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                         <div v-if="form.errors[`classrooms.${index}.uses_db_storage`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.uses_db_storage`] }}</div>
                                     </div>
                                     <button type="button" @click="removeClassroom(index)" class="inline-block mt-2 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">
-                                        Eliminar Aula
+                                        Eliminar Aula {{ classroom.id ? '(ID: ' + classroom.id + ')' : '(Nueva)' }}
                                     </button>
                                 </div>
                             </div>
 
                             <div class="flex justify-end space-x-4">
-                                <button :href="route('admin.general.faculties.index')" class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition ease-in-out duration-150">
+                                <button type="button" @click="router.visit(route('admin.general.faculties.index'))" class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition ease-in-out duration-150">
                                     Cancelar
                                 </button>
                                 <button type="submit" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150" :disabled="form.processing">
