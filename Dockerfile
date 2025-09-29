@@ -2,7 +2,7 @@
 FROM php:8.2-apache
 
 # Force rebuild
-RUN echo "Railway Laravel Build v6 - Vite Assets Fix"
+RUN echo "Railway Laravel Build v7 - Excel Support"
 
 # Instalar dependencias del sistema (incluir Node.js LTS)
 RUN apt-get update && apt-get install -y \
@@ -25,16 +25,21 @@ WORKDIR /var/www/html
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copiar archivos y instalar dependencias
+# Copiar archivos de configuración de dependencias
 COPY composer.json composer.lock ./
 COPY package*.json ./
+
+# Instalar dependencias de Composer
 RUN composer install --no-scripts --no-dev --optimize-autoloader
 
 # Copiar resto del código
 COPY . .
 
-# Instalar dependencias de Node.js y compilar assets
-RUN npm install && npm run build
+# Instalar dependencias de Node.js (incluye xlsx del package.json)
+RUN npm ci --no-audit
+
+# Compilar assets con Vite
+RUN npm run build
 
 # Ejecutar scripts de Composer y regenerar autoloader
 RUN composer run-script post-autoload-dump --no-interaction || echo "Scripts omitidos"
