@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\General;
 
 use App\Http\Controllers\Controller;
-use App\Models\Faculty;
-use App\Models\Classroom;
+use App\Models\faculty;
+use App\Models\classroom;
 use App\Models\Municipality;
-use App\Models\Complaint_classroom;
-use App\Models\Reservation_classroom;
+use App\Models\complaint_classroom;
+use App\Models\reservation_classroom;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,7 +23,7 @@ class FacultyController extends Controller
         $users = User::whereIn('rol_id', [2, 3])->get(['id', 'name', 'rol_id']);
 
         // Cargar todas las facultades sin filtrar por municipality_id
-        $faculties = Faculty::with(['classrooms', 'responsibleUser'])->get();
+        $faculties = faculty::with(['classrooms', 'responsibleUser'])->get();
 
         return Inertia::render('Admin/General/Faculties/Index', [
             'faculties' => $faculties,
@@ -121,11 +121,11 @@ public function store(Request $request)
         foreach ($responsablesToAssign as $responsableId) {
             try {
                 // Limpiar responsables duplicados en faculties usando Eloquent
-                Faculty::where('responsible', $responsableId)
+                faculty::where('responsible', $responsableId)
                     ->update(['responsible' => null]);
                 
                 // Limpiar responsables duplicados en classrooms usando Eloquent
-                Classroom::where('responsible', $responsableId)
+                classroom::where('responsible', $responsableId)
                     ->update(['responsible' => null]);
                 
                 // Limpiar asignaciones previas en users usando Eloquent
@@ -139,7 +139,7 @@ public function store(Request $request)
         }
     }
 
-    $faculty = Faculty::create($data);
+    $faculty = faculty::create($data);
 
     // Actualizar tabla users para el responsable de la facultad creada usando Eloquent
     if ($request->responsible) {
@@ -194,7 +194,7 @@ public function store(Request $request)
     return redirect()->route('admin.general.faculties.index')->with('success', 'Facultad creada con éxito.');
 }
 
-    public function edit(Faculty $faculty)
+    public function edit(faculty $faculty)
     {
         $faculty->load('classrooms');
         $municipalities = Municipality::all();
@@ -207,7 +207,7 @@ public function store(Request $request)
         ]);
     }
 
-public function update(Request $request, Faculty $faculty)
+public function update(Request $request, faculty $faculty)
 {
     $validated = $request->validate([
         'name' => 'required|string|max:255',
@@ -284,13 +284,13 @@ public function update(Request $request, Faculty $faculty)
     if (!empty($responsablesToAssign)) {
         foreach ($responsablesToAssign as $responsableId) {
             try {
-                $facultyQuery = Faculty::where('responsible', $responsableId);
+                $facultyQuery = faculty::where('responsible', $responsableId);
                 if ($request->responsible == $responsableId) {
                     $facultyQuery->where('id', '!=', $faculty->id);
                 }
                 $facultyQuery->update(['responsible' => null]);
                 
-                $classroomQuery = Classroom::where('responsible', $responsableId);
+                $classroomQuery = classroom::where('responsible', $responsableId);
                 
                 if ($request->has('classrooms') && is_array($request->classrooms)) {
                     $classroomsToExclude = [];
@@ -354,7 +354,7 @@ public function update(Request $request, Faculty $faculty)
     
     // LIMPIEZA COMPLETA DE CLASSROOMS (del primer código)
     foreach ($classroomsToDelete as $classroomId) {
-        $classroom = Classroom::find($classroomId);
+        $classroom = classroom::find($classroomId);
         if ($classroom) {
             try {
                 \Log::info("Eliminando classroom ID: {$classroomId} - {$classroom->name}");
@@ -368,20 +368,20 @@ public function update(Request $request, Faculty $faculty)
                 // 2. Limpiar referencias en otras tablas donde este classroom sea responsable (tabla classrooms)
                 if ($classroom->responsible) {
                     // Limpiar si el responsable de este classroom es responsable de otros classrooms
-                    $otherClassrooms = Classroom::where('responsible', $classroom->responsible)
+                    $otherClassrooms = classroom::where('responsible', $classroom->responsible)
                         ->where('id', '!=', $classroomId)
                         ->update(['responsible' => null]);
                     \Log::info("Limpiadas {$otherClassrooms} referencias de responsable en otras classrooms");
                     
                     // Limpiar si el responsable de este classroom es responsable de alguna facultad
-                    $facultiesAffected = Faculty::where('responsible', $classroom->responsible)
+                    $facultiesAffected = faculty::where('responsible', $classroom->responsible)
                         ->update(['responsible' => null]);
                     \Log::info("Limpiadas {$facultiesAffected} referencias de responsable en facultades");
                 }
                 
                 // 3. Eliminar reservaciones y quejas asociadas
-                Reservation_classroom::where('classroom_id', $classroomId)->delete();
-                Complaint_classroom::where('classroom_id', $classroomId)->delete();
+                reservation_classroom::where('classroom_id', $classroomId)->delete();
+                complaint_classroom::where('classroom_id', $classroomId)->delete();
                 
                 // 4. Eliminar imagen si existe
                 if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
@@ -413,7 +413,7 @@ public function update(Request $request, Faculty $faculty)
 
             if ($classroomData['image_option'] === 'upload' && isset($classroomData['image_file'])) {
                 if (isset($classroomData['id'])) {
-                    $existingClassroom = Classroom::find($classroomData['id']);
+                    $existingClassroom = classroom::find($classroomData['id']);
                     if ($existingClassroom && $existingClassroom->image_path) {
                         Storage::disk('public')->delete($existingClassroom->image_path);
                     }
@@ -422,7 +422,7 @@ public function update(Request $request, Faculty $faculty)
                 $classroom['image_path'] = $classroomData['image_file']->store('classrooms', 'public');
             } elseif ($classroomData['image_option'] === 'url') {
                 if (isset($classroomData['id'])) {
-                    $existingClassroom = Classroom::find($classroomData['id']);
+                    $existingClassroom = classroom::find($classroomData['id']);
                     if ($existingClassroom && $existingClassroom->image_path) {
                         Storage::disk('public')->delete($existingClassroom->image_path);
                     }
@@ -433,7 +433,7 @@ public function update(Request $request, Faculty $faculty)
 
             $classroomId = null;
             if (isset($classroomData['id']) && $classroomData['id']) {
-                Classroom::where('id', $classroomData['id'])->update($classroom);
+                classroom::where('id', $classroomData['id'])->update($classroom);
                 $classroomId = $classroomData['id'];
             } else {
                 $newClassroom = $faculty->classrooms()->create($classroom);
@@ -444,12 +444,12 @@ public function update(Request $request, Faculty $faculty)
                 try {
                     // LIMPIEZA ADICIONAL: Limpiar cualquier classroom que tenga este mismo responsable
                     // antes de asignarlo al classroom actual
-                    Classroom::where('responsible', $classroomData['responsible'])
+                    classroom::where('responsible', $classroomData['responsible'])
                         ->where('id', '!=', $classroomId)
                         ->update(['responsible' => null]);
                     
                     // Limpiar cualquier facultad que tenga este mismo responsable
-                    Faculty::where('responsible', $classroomData['responsible'])
+                    faculty::where('responsible', $classroomData['responsible'])
                         ->update(['responsible' => null]);
                     
                     // Limpiar usuarios asociados al classroom actual
@@ -483,7 +483,7 @@ public function update(Request $request, Faculty $faculty)
         ->with('success', 'Facultad actualizada con éxito.');
 }
 
-public function destroy(Faculty $faculty)
+public function destroy(faculty $faculty)
 {
     // LIMPIEZA PREVIA: Limpiar responsabilidades antes de eliminar la facultad y sus classrooms
     try {
@@ -512,8 +512,8 @@ public function destroy(Faculty $faculty)
 
         // Eliminar reservaciones y quejas asociadas al classroom
         try {
-            Reservation_classroom::where('classroom_id', $classroom->id)->delete();
-            Complaint_classroom::where('classroom_id', $classroom->id)->delete();
+            reservation_classroom::where('classroom_id', $classroom->id)->delete();
+            complaint_classroom::where('classroom_id', $classroom->id)->delete();
         } catch (\Exception $e) {
             \Log::error('Error eliminando reservaciones/quejas del classroom ID ' . $classroom->id . ': ' . $e->getMessage());
         }
@@ -540,12 +540,12 @@ public function destroy(Faculty $faculty)
         // Limpiar cualquier referencia del responsable de la facultad en otras tablas (por si hay inconsistencias)
         if ($faculty->responsible) {
             // Verificar si el responsable de esta facultad es responsable de otras facultades
-            Faculty::where('responsible', $faculty->responsible)
+            faculty::where('responsible', $faculty->responsible)
                 ->where('id', '!=', $faculty->id)
                 ->update(['responsible' => null]);
 
             // Verificar si el responsable de esta facultad es responsable de algún classroom
-            Classroom::where('responsible', $faculty->responsible)
+            classroom::where('responsible', $faculty->responsible)
                 ->update(['responsible' => null]);
 
             \Log::info("Limpiadas referencias adicionales del responsable ID: {$faculty->responsible}");
@@ -555,12 +555,12 @@ public function destroy(Faculty $faculty)
         $classroomResponsibles = $faculty->classrooms->pluck('responsible')->filter()->unique();
         foreach ($classroomResponsibles as $responsibleId) {
             // Limpiar si este responsable está asignado a otros classrooms
-            Classroom::where('responsible', $responsibleId)
+            classroom::where('responsible', $responsibleId)
                 ->whereNotIn('id', $faculty->classrooms->pluck('id'))
                 ->update(['responsible' => null]);
 
             // Limpiar si este responsable está asignado a alguna facultad
-            Faculty::where('responsible', $responsibleId)
+            faculty::where('responsible', $responsibleId)
                 ->where('id', '!=', $faculty->id)
                 ->update(['responsible' => null]);
 
