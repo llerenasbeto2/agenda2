@@ -12,19 +12,27 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:currentPage', 'page-changed']);
+const emit = defineEmits(['update:currentPage', 'update:itemsPerPage', 'page-changed']);
 
 const currentPage = ref(1);
+const localItemsPerPage = ref(props.itemsPerPage);
+
+const perPageOptions = [5, 10, 25, 50];
+
+const onItemsPerPageChange = () => {
+  emit('update:itemsPerPage', localItemsPerPage.value);
+  goToPage(1);
+};
 
 // Compute total pages
 const totalPages = computed(() => {
-  return Math.ceil(props.items.length / props.itemsPerPage);
+  return Math.ceil(props.items.length / localItemsPerPage.value);
 });
 
 // Compute paginated items for the current page
 const paginatedItems = computed(() => {
-  const start = (currentPage.value - 1) * props.itemsPerPage;
-  const end = start + props.itemsPerPage;
+  const start = (currentPage.value - 1) * localItemsPerPage.value;
+  const end = start + localItemsPerPage.value;
   return props.items.slice(start, end);
 });
 
@@ -70,11 +78,16 @@ const pageNumbers = computed(() => {
   return pages;
 });
 
-// Watch for changes in items to reset to page 1 if needed
-watch(() => props.items, () => {
-  if (currentPage.value > totalPages.value) {
+// Watch for changes in totalPages to reset to page 1 if needed
+watch(totalPages, (newVal) => {
+  if (currentPage.value > newVal) {
     goToPage(1);
   }
+});
+
+// Sync localItemsPerPage with props if parent changes it
+watch(() => props.itemsPerPage, (newVal) => {
+  localItemsPerPage.value = newVal;
 });
 </script>
 
@@ -84,36 +97,58 @@ watch(() => props.items, () => {
     <slot :paginatedItems="paginatedItems"></slot>
 
     <!-- Pagination controls -->
-    <div v-if="totalPages > 1" class="mt-4 flex justify-center items-center space-x-2">
-      <button
-        @click="prevPage"
-        :disabled="currentPage === 1"
-        class="px-3 py-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
-      >
-        Anterior
-      </button>
+    <div v-if="props.items.length > 0" class="mt-4 flex items-center">
+      <div class="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-200 mr-4">
+        <span>Mostrar</span>
+        <select 
+          v-model="localItemsPerPage" 
+          @change="onItemsPerPageChange"
+          class="text-sm px-2 py-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option 
+            v-for="option in perPageOptions" 
+            :key="option" 
+            :value="option"
+          >
+            {{ option }}
+          </option>
+        </select>
+        <span>por página</span>
+      </div>
 
-      <button
-        v-for="page in pageNumbers"
-        :key="page"
-        @click="goToPage(page)"
-        :class="[
-          'px-3 py-1 rounded-md border',
-          currentPage === page
-            ? 'bg-blue-500 text-white border-blue-500'
-            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600',
-        ]"
-      >
-        {{ page }}
-      </button>
+      <div class="flex-1 flex justify-center">
+        <div v-if="totalPages > 1" class="flex items-center space-x-2">
+          <button
+            @click="prevPage"
+            :disabled="currentPage === 1"
+            class="px-3 py-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
+          >
+            Anterior
+          </button>
 
-      <button
-        @click="nextPage"
-        :disabled="currentPage === totalPages"
-        class="px-3 py-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
-      >
-        Siguiente
-      </button>
+          <button
+            v-for="page in pageNumbers"
+            :key="page"
+            @click="goToPage(page)"
+            :class="[
+              'px-3 py-1 rounded-md border',
+              currentPage === page
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600',
+            ]"
+          >
+            {{ page }}
+          </button>
+
+          <button
+            @click="nextPage"
+            :disabled="currentPage === totalPages"
+            class="px-3 py-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
+          >
+            Siguiente
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

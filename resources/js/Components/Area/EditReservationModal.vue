@@ -14,15 +14,6 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
-// Formatear fechas para datetime-local
-const formatDateTimeForInput = (dateTime) => {
-    if (!dateTime) return '';
-    const date = new Date(dateTime);
-    if (isNaN(date.getTime())) return '';
-    const pad = (num) => num.toString().padStart(2, '0');
-    return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
-};
-
 // Time options for 30-minute intervals from 7:00 AM to 8:00 PM
 const timeOptions = ref([
   '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
@@ -38,10 +29,6 @@ const newIrregularDate = ref({ date: '', startTime: '', endTime: '' });
 // Sistema de conflictos
 const conflicts = ref([]);
 const showConflicts = ref(false);
-
-// Estados para visualización de fechas
-const displayStartDateTime = ref('');
-const displayEndDateTime = ref('');
 
 // Inicializar formulario con datos de la reservación
 const form = useForm({
@@ -89,17 +76,61 @@ const addConflict = (conflict) => {
 
 // Inicializar valores de visualización y resetear formulario
 const resetToOriginal = () => {
-  displayStartDateTime.value = formatDateTimeForInput(props.reservation?.start_datetime);
-  displayEndDateTime.value = formatDateTimeForInput(props.reservation?.end_datetime);
-  
-  // Inicializar irregularDates desde los datos originales
-  if (props.reservation && props.reservation.irregular_dates) {
-    irregularDates.value = Array.isArray(props.reservation.irregular_dates)
-      ? [...props.reservation.irregular_dates] // Crear una copia
-      : JSON.parse(props.reservation.irregular_dates || '[]');
-  } else {
-    irregularDates.value = [];
+  // Inicializar irregularDates desde los datos originales, incluyendo la fecha principal
+  let rawIrregular = props.reservation?.irregular_dates;
+  let parsedIrregular = [];
+  if (rawIrregular) {
+    if (Array.isArray(rawIrregular)) {
+      parsedIrregular = [...rawIrregular];
+    } else {
+      try {
+        parsedIrregular = JSON.parse(rawIrregular || '[]');
+      } catch (e) {
+        console.error('Error parsing irregular_dates:', rawIrregular, e);
+        parsedIrregular = [];
+      }
+    }
   }
+
+  // Agregar o marcar la fecha principal
+  const startFull = props.reservation?.start_datetime;
+  if (startFull) {
+    const startDate = startFull.substring(0, 10);
+    const startTime = startFull.substring(11, 16);
+    const endFull = props.reservation?.end_datetime;
+    const endTime = endFull ? endFull.substring(11, 16) : startTime;
+    const mainDateObj = {
+      date: startDate,
+      startTime: startTime,
+      endTime: endTime,
+      isMain: true
+    };
+    updateDisplayText(mainDateObj);
+
+    // Buscar si ya existe en parsedIrregular
+    const index = parsedIrregular.findIndex(d =>
+      d.date === mainDateObj.date &&
+      d.startTime === mainDateObj.startTime &&
+      d.endTime === mainDateObj.endTime
+    );
+    if (index !== -1) {
+      // Marcar como principal y actualizar displayText
+      parsedIrregular[index].isMain = true;
+      parsedIrregular[index].displayText = mainDateObj.displayText;
+    } else {
+      // Agregar al inicio
+      parsedIrregular.unshift(mainDateObj);
+    }
+  }
+
+  irregularDates.value = parsedIrregular;
+
+  // Actualizar displayText para las fechas irregulares cargadas (limpiar posibles valores incorrectos)
+  irregularDates.value.forEach(dateObj => {
+    if (!dateObj.displayText) {
+      updateDisplayText(dateObj);
+    }
+  });
   
   // Limpiar conflictos
   clearConflicts();
@@ -112,25 +143,43 @@ onMounted(() => {
   resetToOriginal();
 });
 
-// Sincronizar form solo cuando el usuario cambia los inputs - NO para irregularDates
-watch(displayStartDateTime, (newValue) => {
-  if (newValue && newValue !== formatDateTimeForInput(props.reservation?.start_datetime)) {
-    form.start_datetime = newValue;
-  }
-});
-
-watch(displayEndDateTime, (newValue) => {
-  if (newValue && newValue !== formatDateTimeForInput(props.reservation?.end_datetime)) {
-    form.end_datetime = newValue;
-  }
-});
-
-// ELIMINADO: El watch para irregularDates que causaba el auto-guardado
 // Solo actualizamos displayText cuando sea necesario, sin watchers automáticos
 const updateDisplayText = (dateObj) => {
   if (dateObj.date && dateObj.startTime && dateObj.endTime) {
     dateObj.displayText = `${dateObj.date} ${dateObj.startTime} - ${dateObj.endTime}`;
   }
+};
+
+// Función para verificar conflictos internos en irregular_dates de la misma reservación
+const checkInternalConflicts = (newDateObj) => {
+  const newStart = new Date(`${newDateObj.date}T${newDateObj.startTime}:00`);
+  const newEnd = new Date(`${newDateObj.date}T${newDateObj.endTime}:00`);
+  const foundConflicts = [];
+
+  // Verificar conflictos con las fechas irregulares ya agregadas
+  irregularDates.value.forEach(existingDate => {
+    // Solo verificar si es la misma fecha
+    if (existingDate.date !== newDateObj.date) return;
+    
+    const existingStart = new Date(`${existingDate.date}T${existingDate.startTime}:00`);
+    const existingEnd = new Date(`${existingDate.date}T${existingDate.endTime}:00`);
+
+    // Solapamiento: si newStart < existingEnd y newEnd > existingStart
+    if (newStart < existingEnd && newEnd > existingStart) {
+      foundConflicts.push({
+        event_title: 'Esta misma reservación',
+        date: existingDate.date,
+        startTime: existingDate.startTime,
+        endTime: existingDate.endTime,
+        newDate: newDateObj.date,
+        newStartTime: newDateObj.startTime,
+        newEndTime: newDateObj.endTime,
+        isInternal: true
+      });
+    }
+  });
+
+  return foundConflicts;
 };
 
 // Función para verificar conflictos en irregular_dates de otras reservaciones aprobadas
@@ -157,31 +206,55 @@ const checkIrregularDateConflicts = (newDateObj) => {
         irreg = JSON.parse(irreg);
       } catch (e) {
         console.error('Error parsing irregular_dates:', irreg);
-        return;
+        irreg = [];
       }
     }
-    if (!Array.isArray(irreg) || irreg.length === 0) return;
+    if (Array.isArray(irreg) && irreg.length > 0) {
+      // Verificar coincidencia de fecha y solapamiento de horas
+      irreg.forEach(d => {
+        if (d.date !== newDateObj.date) return;
+        
+        const dStart = new Date(`${d.date}T${d.startTime}:00`);
+        const dEnd = new Date(`${d.date}T${d.endTime}:00`);
 
-    // Verificar coincidencia de fecha y solapamiento de horas
-    irreg.forEach(d => {
-      if (d.date !== newDateObj.date) return;
-      
-      const dStart = new Date(`${d.date}T${d.startTime}:00`);
-      const dEnd = new Date(`${d.date}T${d.endTime}:00`);
+        // Solapamiento: si newStart < dEnd y newEnd > dStart
+        if (newStart < dEnd && newEnd > dStart) {
+          foundConflicts.push({
+            event_title: res.event_title,
+            date: d.date,
+            startTime: d.startTime,
+            endTime: d.endTime,
+            newDate: newDateObj.date,
+            newStartTime: newDateObj.startTime,
+            newEndTime: newDateObj.endTime
+          });
+        }
+      });
+    }
 
-      // Solapamiento: si newStart < dEnd y newEnd > dStart
-      if (newStart < dEnd && newEnd > dStart) {
-        foundConflicts.push({
-          event_title: res.event_title,
-          date: d.date,
-          startTime: d.startTime,
-          endTime: d.endTime,
-          newDate: newDateObj.date,
-          newStartTime: newDateObj.startTime,
-          newEndTime: newDateObj.endTime
-        });
+    // También verificar contra la fecha principal de otras reservaciones
+    if (res.start_datetime && res.end_datetime) {
+      const resDate = res.start_datetime.substring(0, 10);
+      if (resDate === newDateObj.date) {
+        const resStartTime = res.start_datetime.substring(11, 16);
+        const resEndTime = res.end_datetime.substring(11, 16);
+        const dStart = new Date(`${resDate}T${resStartTime}:00`);
+        const dEnd = new Date(`${resDate}T${resEndTime}:00`);
+
+        // Solapamiento: si newStart < dEnd y newEnd > dStart
+        if (newStart < dEnd && newEnd > dStart) {
+          foundConflicts.push({
+            event_title: res.event_title,
+            date: resDate,
+            startTime: resStartTime,
+            endTime: resEndTime,
+            newDate: newDateObj.date,
+            newStartTime: newDateObj.startTime,
+            newEndTime: newDateObj.endTime
+          });
+        }
       }
-    });
+    }
   });
 
   return foundConflicts;
@@ -198,6 +271,14 @@ const addIrregularDate = () => {
 
     // Actualizar displayText manualmente
     updateDisplayText(newDateObj);
+
+    // Verificar conflictos internos (dentro de la misma reservación)
+    const internalConflicts = checkInternalConflicts(newDateObj);
+    if (internalConflicts.length > 0) {
+      internalConflicts.forEach(conflict => {
+        addConflict(conflict);
+      });
+    }
 
     // Verificar conflictos solo si existen reservaciones
     if (props.reservations && props.reservations.length > 0) {
@@ -240,19 +321,24 @@ const removeIrregularDate = (index) => {
 
 // Preparar datos para envío - AQUÍ SE SINCRONIZA CON EL FORMULARIO
 const prepareSubmit = () => {
-  // SOLO AQUÍ se actualiza el formulario con las fechas irregulares
-  form.irregular_dates = irregularDates.value.length > 0 ? JSON.stringify(irregularDates.value) : null;
-  console.log('Prepared irregular_dates:', form.irregular_dates);
-  
-  // Preparar fechas usando los valores de visualización si han cambiado
-  if (displayStartDateTime.value) {
-    form.start_datetime = new Date(displayStartDateTime.value).toISOString();
+  // Extraer la fecha principal del array
+  let mainDateObj = irregularDates.value.find(d => d.isMain);
+  if (!mainDateObj && irregularDates.value.length > 0) {
+    mainDateObj = irregularDates.value[0];
+    mainDateObj.isMain = true;
   }
-  if (displayEndDateTime.value) {
-    form.end_datetime = new Date(displayEndDateTime.value).toISOString();
+  if (mainDateObj) {
+    form.start_datetime = `${mainDateObj.date}T${mainDateObj.startTime}:00`;
+    form.end_datetime = `${mainDateObj.date}T${mainDateObj.endTime}:00`;
   } else {
+    form.start_datetime = null;
     form.end_datetime = null;
   }
+
+  // Fechas irregulares: excluir la principal
+  const additional = irregularDates.value.filter(d => !d.isMain);
+  form.irregular_dates = additional.length > 0 ? JSON.stringify(additional) : null;
+  console.log('Prepared irregular_dates:', form.irregular_dates);
   
   Object.keys(form.data()).forEach(key => {
     if (form[key] === '' && key !== 'status') {
@@ -288,15 +374,11 @@ const submit = () => {
     preserveScroll: true,
     onSuccess: () => {
       console.log('Form submitted successfully, irregular_dates:', form.irregular_dates);
-      displayStartDateTime.value = formatDateTimeForInput(form.start_datetime);
-      displayEndDateTime.value = formatDateTimeForInput(form.end_datetime);
       isSubmitting.value = false;
       emit('close');
     },
     onError: (errors) => {
       console.error('Form submission errors:', errors);
-      displayStartDateTime.value = formatDateTimeForInput(form.start_datetime);
-      displayEndDateTime.value = formatDateTimeForInput(form.end_datetime);
       isSubmitting.value = false;
     },
     onFinish: () => {
@@ -404,16 +486,6 @@ const close = () => {
                                     <label for="attendees" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Número de Asistentes</label>
                                     <input id="attendees" v-model="form.attendees" type="number" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required />
                                     <div v-if="form.errors.attendees" class="text-red-500 text-sm mt-1">{{ form.errors.attendees }}</div>
-                                </div>
-                                <div>
-                                    <label for="start_datetime" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha y Hora de Inicio</label>
-                                    <input id="start_datetime" v-model="displayStartDateTime" type="datetime-local" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required />
-                                    <div v-if="form.errors.start_datetime" class="text-red-500 text-sm mt-1">{{ form.errors.start_datetime }}</div>
-                                </div>
-                                <div>
-                                    <label for="end_datetime" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha y Hora de Fin</label>
-                                    <input id="end_datetime" v-model="displayEndDateTime" type="datetime-local" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                                    <div v-if="form.errors.end_datetime" class="text-red-500 text-sm mt-1">{{ form.errors.end_datetime }}</div>
                                 </div>
                                 <div>
                                     <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Estado</label>
@@ -525,6 +597,7 @@ const close = () => {
                         <tr v-for="(date, index) in irregularDates" :key="index" class="border-b dark:border-gray-600">
                           <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
                             <input type="date" v-model="date.date" class="bg-transparent border-b border-gray-300 dark:border-gray-500 focus:border-blue-500" />
+                            <span v-if="date.isMain" class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded ml-2">Principal</span>
                           </td>
                           <td class="px-4 py-2 text-gray-800 dark:text-gray-200">
                             <select v-model="date.startTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">

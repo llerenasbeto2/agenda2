@@ -25,11 +25,10 @@ const form = useForm({
     services: '',
     description: '',
     web_site: '',
-    image_option: 'url',
+    image_option: 'none',
     image_url: '',
     image_file: null,
     classrooms: [],
-    // capacity eliminado del formulario
 });
 
 const classrooms = ref([]);
@@ -46,7 +45,7 @@ const addClassroom = () => {
         email: '',
         phone: '',
         web_site: '',
-        image_option: 'url',
+        image_option: 'none',
         image_url: '',
         image_file: null,
         uses_db_storage: false,
@@ -92,24 +91,24 @@ const submit = () => {
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
                     <div class="p-6">
-                        <form @submit.prevent="submit" class="space-y-6">
+                        <form @submit.prevent="submit" enctype="multipart/form-data" class="space-y-6">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Nombre*</label>
+                                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Nombre</label>
                                     <input id="name" type="text" v-model="form.name" required
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                     <div v-if="form.errors.name" class="text-red-500 text-sm mt-1">{{ form.errors.name }}</div>
                                 </div>
 
                                 <div>
-                                    <label for="location" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Ubicación*</label>
+                                    <label for="location" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Ubicación</label>
                                     <input id="location" type="text" v-model="form.location" required
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                     <div v-if="form.errors.location" class="text-red-500 text-sm mt-1">{{ form.errors.location }}</div>
                                 </div>
 
                                 <div>
-                                    <label for="responsible" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Responsable*</label>
+                                    <label for="responsible" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Responsable</label>
                                     <select id="responsible" v-model="form.responsible" required
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
                                         <option value="">Seleccione un responsable</option>
@@ -124,7 +123,7 @@ const submit = () => {
                                 </div>
 
                                 <div>
-                                    <label for="municipality_id" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Municipio*</label>
+                                    <label for="municipality_id" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Municipio</label>
                                     <select id="municipality_id" v-model="form.municipality_id" required
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
                                         <option v-for="municipality in municipalities" :key="municipality.id" :value="municipality.id">
@@ -157,22 +156,26 @@ const submit = () => {
                             </div>
 
                             <div>
-                                <label for="services" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Servicios*</label>
+                                <label for="services" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Servicios</label>
                                 <textarea id="services" v-model="form.services" required
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"></textarea>
                                 <div v-if="form.errors.services" class="text-red-500 text-sm mt-1">{{ form.errors.services }}</div>
                             </div>
 
                             <div>
-                                <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Descripción*</label>
+                                <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Descripción</label>
                                 <textarea id="description" v-model="form.description" required
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"></textarea>
                                 <div v-if="form.errors.description" class="text-red-500 text-sm mt-1">{{ form.errors.description }}</div>
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen*</label>
-                                <div class="flex space-x-4 mb-2">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen (Opcional)</label>
+                                <div class="flex flex-wrap gap-4 mb-2">
+                                    <label class="flex items-center">
+                                        <input type="radio" v-model="form.image_option" value="none" class="mr-2" />
+                                        Ninguna
+                                    </label>
                                     <label class="flex items-center">
                                         <input type="radio" v-model="form.image_option" value="url" class="mr-2" />
                                         URL
@@ -187,12 +190,12 @@ const submit = () => {
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                     <div v-if="form.errors.image_url" class="text-red-500 text-sm mt-1">{{ form.errors.image_url }}</div>
                                 </div>
-                                <div v-else>
+                                <div v-else-if="form.image_option === 'upload'">
                                     <input id="image_file" type="file" accept="image/*" @change="handleImageFile($event, form)"
                                         class="mt-1 block w-full" />
                                     <div v-if="form.errors.image_file" class="text-red-500 text-sm mt-1">{{ form.errors.image_file }}</div>
                                 </div>
-                                <div class="text-sm text-gray-500 mt-1">La imagen es obligatoria para crear la facultad.</div>
+                                <div class="text-sm text-gray-500 mt-1">La imagen es opcional.</div>
                             </div>
 
                             <div>
@@ -208,7 +211,7 @@ const submit = () => {
                                 <div v-for="(classroom, index) in classrooms" :key="index" class="border p-4 rounded-lg mb-4 mt-4">
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <label :for="`classroom_name_${index}`" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Nombre del Aula*</label>
+                                            <label :for="`classroom_name_${index}`" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Nombre del Aula</label>
                                             <input :id="`classroom_name_${index}`" type="text" v-model="classroom.name" required
                                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                             <div v-if="form.errors[`classrooms.${index}.name`]" class="text-red-500 text-sm mt-1">
@@ -217,7 +220,7 @@ const submit = () => {
                                         </div>
 
                                         <div>
-                                            <label :for="`classroom_capacity_${index}`" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Capacidad*</label>
+                                            <label :for="`classroom_capacity_${index}`" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Capacidad</label>
                                             <input :id="`classroom_capacity_${index}`" type="number" v-model="classroom.capacity" required
                                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                             <div v-if="form.errors[`classrooms.${index}.capacity`]" class="text-red-500 text-sm mt-1">
@@ -268,7 +271,7 @@ const submit = () => {
                                     </div>
 
                                     <div class="mt-4">
-                                        <label :for="`classroom_services_${index}`" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Servicios*</label>
+                                        <label :for="`classroom_services_${index}`" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Servicios</label>
                                         <textarea :id="`classroom_services_${index}`" v-model="classroom.services" required
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"></textarea>
                                         <div v-if="form.errors[`classrooms.${index}.services`]" class="text-red-500 text-sm mt-1">
@@ -277,8 +280,12 @@ const submit = () => {
                                     </div>
 
                                     <div class="mt-4">
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen del Aula</label>
-                                        <div class="flex space-x-4 mb-2">
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen del Aula (Opcional)</label>
+                                        <div class="flex flex-wrap gap-4 mb-2">
+                                            <label class="flex items-center">
+                                                <input type="radio" v-model="classroom.image_option" value="none" class="mr-2" />
+                                                Ninguna
+                                            </label>
                                             <label class="flex items-center">
                                                 <input type="radio" v-model="classroom.image_option" value="url" class="mr-2" />
                                                 URL
@@ -295,12 +302,23 @@ const submit = () => {
                                                 {{ form.errors[`classrooms.${index}.image_url`] }}
                                             </div>
                                         </div>
-                                        <div v-else>
+                                        <div v-else-if="classroom.image_option === 'upload'">
                                             <input :id="`classroom_image_file_${index}`" type="file" accept="image/*" @change="handleImageFile($event, classroom)"
                                                 class="mt-1 block w-full" />
                                             <div v-if="form.errors[`classrooms.${index}.image_file`]" class="text-red-500 text-sm mt-1">
                                                 {{ form.errors[`classrooms.${index}.image_file`] }}
                                             </div>
+                                        </div>
+                                        <div class="text-sm text-gray-500 mt-1">La imagen es opcional.</div>
+                                    </div>
+
+                                    <div class="mt-4">
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                                            <input :id="`classroom_uses_db_storage_${index}`" type="checkbox" v-model="classroom.uses_db_storage" class="mt-1 rounded border-gray-300 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
+                                            Usar almacenamiento en base de datos
+                                        </label>
+                                        <div v-if="form.errors[`classrooms.${index}.uses_db_storage`]" class="text-red-500 text-sm mt-1">
+                                            {{ form.errors[`classrooms.${index}.uses_db_storage`] }}
                                         </div>
                                     </div>
 

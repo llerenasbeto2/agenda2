@@ -49,12 +49,54 @@ onMounted(() => {
   });
 });
 
+// COMPUTED ACTUALIZADO CON SOPORTE PARA IRREGULAR_DATES
 const filteredReservations = computed(() => {
   return props.reservaciones.filter(reservacion => {
+    // Filtro por estado
     const statusMatch = !selectedStatus.value || reservacion.status === selectedStatus.value;
+    
+    // Filtro por classroom (específico de AdminArea)
     const classroomMatch = reservacion.classroom_id === props.auth.user.responsible;
-    const dateMatch = !selectedDate.value || 
-      new Date(reservacion.start_datetime).toISOString().split('T')[0] === selectedDate.value;
+    
+    // Filtro por fecha (incluyendo irregular_dates)
+    let dateMatch = true;
+    if (selectedDate.value) {
+      const searchDate = selectedDate.value;
+      
+      // Verificar en start_datetime
+      const startDateMatch = new Date(reservacion.start_datetime)
+        .toISOString()
+        .split('T')[0] === searchDate;
+      
+      // Verificar en irregular_dates con formato específico
+      let irregularDateMatch = false;
+      if (reservacion.irregular_dates) {
+        try {
+          const irregularDates = typeof reservacion.irregular_dates === 'string' 
+            ? JSON.parse(reservacion.irregular_dates) 
+            : reservacion.irregular_dates;
+          
+          if (Array.isArray(irregularDates)) {
+            irregularDateMatch = irregularDates.some(dateObj => {
+              // Si es un objeto con propiedad 'date'
+              if (dateObj.date) {
+                return dateObj.date === searchDate;
+              }
+              // Si es solo un string de fecha
+              if (typeof dateObj === 'string') {
+                return dateObj.split('T')[0] === searchDate;
+              }
+              return false;
+            });
+          }
+        } catch (error) {
+          console.error('Error parsing irregular_dates:', error);
+        }
+      }
+      
+      dateMatch = startDateMatch || irregularDateMatch;
+    }
+    
     return statusMatch && classroomMatch && dateMatch;
   }); 
 });
@@ -106,26 +148,20 @@ const openPaymentModal = (reserva) => {
 };
 
 const closePaymentModal = () => {
-    showPaymentModal.value = false;
-
+  showPaymentModal.value = false;
 };
 
 const handlePaymentUpdate = async (updatedData) => {
-    try {
-        // Actualizar los datos localmente
-        if (selectedReservation.value) {
-            selectedReservation.value.cost = updatedData.cost;
-            selectedReservation.value.is_paid = updatedData.is_paid;
-            selectedReservation.value.payment_date = updatedData.payment_date;
-        }
-        
-        // Opcional: Recargar todos los datos para asegurar consistencia
-        // await fetchReservations(); // Si tienes una función para recargar datos
-        
-        console.log('Datos de pago actualizados:', updatedData);
-    } catch (error) {
-        console.error('Error al actualizar los datos localmente:', error);
+  try {
+    if (selectedReservation.value) {
+      selectedReservation.value.cost = updatedData.cost;
+      selectedReservation.value.is_paid = updatedData.is_paid;
+      selectedReservation.value.payment_date = updatedData.payment_date;
     }
+    console.log('Datos de pago actualizados:', updatedData);
+  } catch (error) {
+    console.error('Error al actualizar los datos localmente:', error);
+  }
 };
 
 const openIngresosModal = () => {
@@ -378,7 +414,7 @@ const eliminarReservacion = (id) => {
                   </tr>
                   <tr v-if="paginatedItems.length === 0">
                     <td colspan="7" class="py-4 px-4 text-center text-gray-500 dark:text-gray-400">
-                      No se encontraron reservaciones para la facultad seleccionada
+                      No se encontraron reservaciones para el aula seleccionada
                     </td>
                   </tr>
                 </tbody>
@@ -414,7 +450,7 @@ const eliminarReservacion = (id) => {
       @close="closeCommentModal"
       @send-comment="handleCommentSent"
     />
-       <PaymentDetails
+    <PaymentDetails
       v-if="selectedReservation"
       :show="showPaymentModal"
       :reservation-id="selectedReservation.id"

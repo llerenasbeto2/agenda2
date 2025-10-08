@@ -6,21 +6,26 @@
         <i class="fas fa-list mr-1.5 text-cyan-400"></i>
         {{ formattedSelectedDate }}
       </h3>
-      <span 
-        v-if="selectedEvents.length > 0"
-        class="text-sm text-cyan-400 bg-cyan-400/20 px-3 py-1 rounded-full"
-      >
-        {{ selectedEvents.length }} evento{{ selectedEvents.length !== 1 ? 's' : '' }}
-      </span>
+      <input 
+        v-model="searchQuery"
+        type="text"
+        placeholder="Buscar por título..."
+        class="text-sm text-white bg-white/10 px-3 py-1 rounded-full border border-white/20 focus:outline-none focus:border-cyan-400 placeholder:text-gray-400 w-48"
+      />
     </div>
 
     <!-- Event List or No Events Message -->
-    <div v-if="selectedEvents.length > 0">
+    <div v-if="filteredEvents.length > 0">
+      <!-- Info de paginación -->
+      <div class="text-xs text-gray-400 mb-2">
+        Mostrando {{ startIndex + 1 }}-{{ endIndex }} de {{ filteredEvents.length }} eventos
+      </div>
+
       <!-- Compact Event List -->
-      <div class="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+      <div class="space-y-3 max-h-[450px] overflow-y-auto pr-2">
         <div 
-          v-for="event in paginatedEvents" 
-          :key="event.title + event.start_time + event.date" 
+          v-for="(event, index) in paginatedEvents" 
+          :key="`event-${props.selectedDate}-${startIndex + index}`" 
           class="event-card"
         >
           <!-- Main Event Info -->
@@ -65,50 +70,77 @@
         </div>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="totalEventPages > 1" class="flex justify-center items-center pt-3 mt-3 border-t border-white/20 space-x-2">
-        <button
-          @click="goToPage(currentEventPage - 1)"
-          :disabled="currentEventPage === 0"
-          class="px-2.5 py-1 text-sm text-white hover:text-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/10 rounded-md"
-        >
-          Anterior
-        </button>
-        <button
-          v-for="page in totalEventPages"
-          :key="page"
-          @click="goToPage(page - 1)"
-          :class="['px-2.5 py-1 text-sm rounded-md transition-all duration-200', currentEventPage === page - 1 ? 'bg-cyan-500 text-white' : 'text-white hover:bg-white/10']"
-        >
-          {{ page }}
-        </button>
-        <button
-          @click="goToPage(currentEventPage + 1)"
-          :disabled="currentEventPage === totalEventPages - 1"
-          class="px-2.5 py-1 text-sm text-white hover:text-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/10 rounded-md"
-        >
-          Siguiente
-        </button>
+      <!-- Pagination Container -->
+      <div class="flex justify-between items-center pt-6 mt-6 border-t border-white/20 space-x-2 min-h-[60px]">
+        <div class="flex items-center space-x-2 text-sm text-white">
+          <span>Mostrar</span>
+          <select 
+            v-model="localItemsPerPage" 
+            @change="onItemsPerPageChange"
+            class="text-sm text-white bg-white/10 px-2 py-1 rounded-md border border-white/20 focus:outline-none focus:border-cyan-400"
+          >
+            <option 
+              v-for="option in perPageOptions" 
+              :key="option" 
+              :value="option"
+            >
+              {{ option }}
+            </option>
+          </select>
+          <span>por página</span>
+        </div>
+        <template v-if="totalPages > 1">
+          <div class="flex items-center space-x-2">
+            <button
+              @click="prevPage"
+              :disabled="currentPage === 1"
+              class="px-2.5 py-1 text-sm text-white hover:text-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/10 rounded-md"
+            >
+              Anterior
+            </button>
+            <button
+              v-for="page in pageNumbers"
+              :key="page"
+              @click="goToPage(page)"
+              :class="['px-2.5 py-1 text-sm rounded-md transition-all duration-200', currentPage === page ? 'bg-cyan-500 text-white' : 'text-white hover:bg-white/10']"
+            >
+              {{ page }}
+            </button>
+            <button
+              @click="nextPage"
+              :disabled="currentPage === totalPages"
+              class="px-2.5 py-1 text-sm text-white hover:text-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:bg-white/10 rounded-md"
+            >
+              Siguiente
+            </button>
+          </div>
+        </template>
       </div>
     </div>
 
     <!-- No Events Message -->
     <div v-else class="text-center py-6">
       <i class="fas fa-calendar-times text-3xl text-gray-400 mb-2"></i>
-      <p class="text-sm text-gray-300">No hay eventos este día.</p>
+      <p class="text-sm text-gray-300">
+        {{ searchQuery ? 'No se encontraron eventos con ese título.' : 'No hay eventos este día.' }}
+      </p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
   selectedDate: String,
   events: Array,
+  itemsPerPage: {
+    type: Number,
+    default: 3
+  },
   currentEventPage: {
     type: Number,
-    default: 0
+    default: 1
   },
   eventsPerPage: {
     type: Number,
@@ -118,11 +150,17 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
-  'update-event-page',
-  'reset-filters',
-  'view-event',
-  'edit-event'
+  'update:itemsPerPage',
+  'page-changed',
+  'update-event-page'
 ]);
+
+// Estado local
+const searchQuery = ref('');
+const currentPage = ref(props.currentEventPage || 1);
+const localItemsPerPage = ref(props.eventsPerPage || props.itemsPerPage);
+
+const perPageOptions = [3, 5, 10, 25, 50];
 
 // Events for the selected date
 const selectedEvents = computed(() => {
@@ -130,14 +168,81 @@ const selectedEvents = computed(() => {
   return props.events.filter(event => event.date === props.selectedDate);
 });
 
-// Pagination
-const totalEventPages = computed(() => {
-  return Math.ceil(selectedEvents.value.length / props.eventsPerPage);
+// Filtered events based on search query
+const filteredEvents = computed(() => {
+  if (!searchQuery.value.trim()) return selectedEvents.value;
+  const query = searchQuery.value.toLowerCase().trim();
+  return selectedEvents.value.filter(event =>
+    event.title.toLowerCase().includes(query)
+  );
 });
 
+// Compute total pages
+const totalPages = computed(() => {
+  return Math.ceil(filteredEvents.value.length / localItemsPerPage.value);
+});
+
+// Calcular índices
+const startIndex = computed(() => {
+  return (currentPage.value - 1) * localItemsPerPage.value;
+});
+
+const endIndex = computed(() => {
+  return Math.min(startIndex.value + localItemsPerPage.value, filteredEvents.value.length);
+});
+
+// Compute paginated items for the current page
 const paginatedEvents = computed(() => {
-  const start = props.currentEventPage * props.eventsPerPage;
-  return selectedEvents.value.slice(start, start + props.eventsPerPage);
+  const start = startIndex.value;
+  const end = endIndex.value;
+  return filteredEvents.value.slice(start, end);
+});
+
+// Handle items per page change
+const onItemsPerPageChange = () => {
+  emit('update:itemsPerPage', localItemsPerPage.value);
+  goToPage(1);
+};
+
+// Navigate to a specific page
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page;
+    emit('update-event-page', page);  // Fixed: Match parent's listener
+    emit('page-changed', paginatedEvents.value);
+  }
+};
+
+// Previous page
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    goToPage(currentPage.value - 1);
+  }
+};
+
+// Next page
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    goToPage(currentPage.value + 1);
+  }
+};
+
+// Generate page numbers for display
+const pageNumbers = computed(() => {
+  const pages = [];
+  const maxVisiblePages = 5;
+  let startPage = Math.max(1, currentPage.value - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(totalPages.value, startPage + maxVisiblePages - 1);
+
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+
+  for (let i = startPage; i <= endPage; i++) {
+    pages.push(i);
+  }
+
+  return pages;
 });
 
 // Formatted date for display
@@ -160,7 +265,6 @@ const getStatusClass = (status) => {
     'Pendiente': 'status-pending', 
     'Rechazado': 'status-rejected',
     'Confirmado': 'status-confirmed',
-    
   };
   return statusClasses[status] || 'status-default';
 };
@@ -177,26 +281,43 @@ const getEventType = (title) => {
   return 'Clase';
 };
 
-// Navigate to a specific page
-const goToPage = (page) => {
-  if (page >= 0 && page < totalEventPages.value) {
-    emit('update-event-page', page);
-  }
-};
-
-// Watch for changes in selectedDate and reset pagination
-watch(() => props.selectedDate, () => {
-  if (props.currentEventPage > 0) {
-    emit('update-event-page', 0);
+// Watch for changes in totalPages to reset to page 1 if needed
+watch(totalPages, (newVal) => {
+  if (currentPage.value > newVal) {
+    goToPage(1);
   }
 });
 
-// Watch for changes in events array and adjust pagination if needed
-watch(() => selectedEvents.value.length, (newLength) => {
-  const maxPage = Math.max(0, Math.ceil(newLength / props.eventsPerPage) - 1);
-  if (props.currentEventPage > maxPage) {
-    emit('update-event-page', Math.max(0, maxPage));
+// Sync localItemsPerPage with props if parent changes it (fixed: watch both props)
+watch(() => props.itemsPerPage, (newVal) => {
+  localItemsPerPage.value = newVal;
+});
+watch(() => props.eventsPerPage, (newVal) => {
+  localItemsPerPage.value = newVal;
+});
+
+// Sync currentPage with prop if parent changes it externally (new: for two-way binding robustness)
+watch(() => props.currentEventPage, (newVal) => {
+  if (newVal !== currentPage.value) {
+    currentPage.value = newVal;
   }
+});
+
+// Watch for changes in selectedDate
+watch(() => props.selectedDate, () => {
+  searchQuery.value = '';
+  goToPage(1);
+});
+
+// Watch for changes in searchQuery
+watch(searchQuery, () => {
+  goToPage(1);
+});
+
+// NEW: Watch for changes in selectedEvents (triggers on filter changes in parent)
+watch(selectedEvents, () => {
+  searchQuery.value = '';
+  goToPage(1);
 });
 </script>
 
@@ -352,6 +473,12 @@ watch(() => selectedEvents.value.length, (newLength) => {
   }
 }
 
+/* Estilos para las opciones del select */
+select option {
+  background-color: #000000;
+  color: #ffffff;
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .event-list-panel {
@@ -374,6 +501,19 @@ watch(() => selectedEvents.value.length, (newLength) => {
 
   .event-details {
     grid-template-columns: 1fr;
+  }
+
+  input[type="text"] {
+    width: 100%;
+  }
+
+  .flex.justify-between {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .flex.items-center.space-x-2.text-sm.text-white {
+    justify-content: center;
   }
 }
 </style>

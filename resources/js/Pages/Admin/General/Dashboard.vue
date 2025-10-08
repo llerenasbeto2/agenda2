@@ -45,12 +45,51 @@ const selectedDate = ref('');
 const selectedMunicipality = ref(1); // Por defecto, 'Colima'
 const filters = ref(props.filters || { event_title: '' });
 
+// Si irregular_dates tiene formato: [{ date: '2025-10-15', start_time: '10:00', end_time: '12:00' }]
+
 const filteredReservations = computed(() => {
   return props.reservaciones.filter(reservacion => {
     const statusMatch = !selectedStatus.value || reservacion.status === selectedStatus.value;
     const municipalityMatch = reservacion.municipality_id === selectedMunicipality.value;
-    const dateMatch = !selectedDate.value ||
-      new Date(reservacion.start_datetime).toISOString().split('T')[0] === selectedDate.value;
+    
+    let dateMatch = true;
+    if (selectedDate.value) {
+      const searchDate = selectedDate.value;
+      
+      // Verificar en start_datetime
+      const startDateMatch = new Date(reservacion.start_datetime)
+        .toISOString()
+        .split('T')[0] === searchDate;
+      
+      // Verificar en irregular_dates con formato específico
+      let irregularDateMatch = false;
+      if (reservacion.irregular_dates) {
+        try {
+          const irregularDates = typeof reservacion.irregular_dates === 'string' 
+            ? JSON.parse(reservacion.irregular_dates) 
+            : reservacion.irregular_dates;
+          
+          if (Array.isArray(irregularDates)) {
+            irregularDateMatch = irregularDates.some(dateObj => {
+              // Si es un objeto con propiedad 'date'
+              if (dateObj.date) {
+                return dateObj.date === searchDate;
+              }
+              // Si es solo un string de fecha
+              if (typeof dateObj === 'string') {
+                return dateObj.split('T')[0] === searchDate;
+              }
+              return false;
+            });
+          }
+        } catch (error) {
+          console.error('Error parsing irregular_dates:', error);
+        }
+      }
+      
+      dateMatch = startDateMatch || irregularDateMatch;
+    }
+    
     return statusMatch && municipalityMatch && dateMatch;
   });
 });

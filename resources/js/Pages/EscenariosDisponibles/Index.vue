@@ -186,7 +186,6 @@ const page = usePage();
                                     </div>
 
                                     <div class="faculty-stats">
-
                                         <div class="stat">
                                             <span class="stat-number">{{ faculty.classrooms.length }}</span>
                                             <span class="stat-label">Aulas</span>
