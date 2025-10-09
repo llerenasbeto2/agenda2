@@ -22,12 +22,15 @@ const filters = ref({
 
 const search = () => {
     console.log('Search triggered with filters:', filters.value);
+    
+    // Crear objeto de parámetros solo con valores no vacíos
+    const params = {};
+    if (filters.value.name) params.name = filters.value.name;
+    if (filters.value.rol_filter) params.rol_filter = filters.value.rol_filter;
+    
     router.get(
         route('admin.general.usuarios.index'),
-        { 
-            name: filters.value.name,
-            rol_filter: filters.value.rol_filter
-        },
+        params,
         {
             preserveState: true,
             replace: true,
@@ -52,8 +55,8 @@ watch(() => filters.value.name, (newValue) => {
 });
 
 // Búsqueda inmediata para el filtro de rol
-watch(() => filters.value.rol_filter, (newValue) => {
-    console.log('Role filter changed:', newValue);
+watch(() => filters.value.rol_filter, () => {
+    console.log('Role filter changed:', filters.value.rol_filter);
     search();
 });
 
@@ -70,6 +73,7 @@ const getRoleColorClasses = (rolName) => {
         case 'Administrador estatal':
             return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
         case 'Administrador area':
+        case 'Administrador de área':
             return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
         case 'Usuario':
             return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
@@ -158,7 +162,7 @@ const getRoleColorClasses = (rolName) => {
                                     <td class="py-2 px-4 text-gray-800 dark:text-gray-200">
                                         <span v-if="user.rol && user.responsible_id">
                                             <span v-if="user.rol.name === 'Administrador estatal'">{{ user.responsibleFaculty ? user.responsibleFaculty.name : 'Facultad no encontrada' }}</span>
-                                            <span v-else-if="user.rol.name === 'Administrador area'">{{ user.responsibleClassroom ? user.responsibleClassroom.name : 'Aula no encontrada' }}</span>
+                                            <span v-else-if="user.rol.name === 'Administrador area' || user.rol.name === 'Administrador de área'">{{ user.responsibleClassroom ? user.responsibleClassroom.name : 'Aula no encontrada' }}</span>
                                             <span v-else>-</span>
                                         </span>
                                         <span v-else>-</span>
