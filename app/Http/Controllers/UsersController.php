@@ -11,50 +11,61 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log; // Import the Log facade
+use Illuminate\Support\Facades\DB;
 
 class UsersController extends Controller
 {
     public function index(Request $request)
-    {
-        \Log::info('Search request received:', ['name' => $request->name]);
-        
-        $query = User::with([
-            'rol',
-            'municipality',
-            'responsibleFaculty' => function ($query) {
-                $query->select('id', 'name');
-            },
-            'responsibleClassroom' => function ($query) {
-                $query->select('id', 'name');
-            }
-        ]);
-        
-        if ($request->filled('name')) {
-            $searchTerm = trim($request->input('name'));
-            \Log::info('Applying filter for name:', ['searchTerm' => $searchTerm]);
-            $query->where('name', 'like', '%' . $searchTerm . '%');
+{
+    \Log::info('Search request received:', [
+        'name' => $request->name,
+        'rol_filter' => $request->rol_filter
+    ]);
+    
+    $query = User::with([
+        'rol',
+        'municipality',
+        'responsibleFaculty' => function ($query) {
+            $query->select('id', 'name');
+        },
+        'responsibleClassroom' => function ($query) {
+            $query->select('id', 'name');
         }
-        
-        $users = $query->get()->map(function ($user) {
-            return [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'rol' => $user->rol ? ['id' => $user->rol->id, 'name' => $user->rol->name] : null,
-                'municipality' => $user->municipality ? ['id' => $user->municipality->id, 'name' => $user->municipality->name] : null,
-                'responsible_id' => $user->responsible_id,
-                'responsibleFaculty' => $user->responsibleFaculty ? ['id' => $user->responsibleFaculty->id, 'name' => $user->responsibleFaculty->name] : null,
-                'responsibleClassroom' => $user->responsibleClassroom ? ['id' => $user->responsibleClassroom->id, 'name' => $user->responsibleClassroom->name] : null,
-            ];
-        });
-        
-        \Log::info('Users returned:', ['count' => $users->count()]);
-        
-        return Inertia::render('Admin/General/Users/Index', [
-            'users' => $users,
-            'filters' => $request->only('name')
-        ]);
+    ]);
+    
+    // Filtrar por nombre
+    if ($request->filled('name')) {
+        $searchTerm = trim($request->input('name'));
+        \Log::info('Applying filter for name:', ['searchTerm' => $searchTerm]);
+        $query->where('name', 'like', '%' . $searchTerm . '%');
     }
+    
+    // Filtrar por rol_id
+    if ($request->filled('rol_filter')) {
+        \Log::info('Applying filter for rol_filter:', ['rol_filter' => $request->rol_filter]);
+        $query->where('rol_id', $request->rol_filter);
+    }
+    
+    $users = $query->get()->map(function ($user) {
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'rol' => $user->rol ? ['id' => $user->rol->id, 'name' => $user->rol->name] : null,
+            'municipality' => $user->municipality ? ['id' => $user->municipality->id, 'name' => $user->municipality->name] : null,
+            'responsible_id' => $user->responsible_id,
+            'responsibleFaculty' => $user->responsibleFaculty ? ['id' => $user->responsibleFaculty->id, 'name' => $user->responsibleFaculty->name] : null,
+            'responsibleClassroom' => $user->responsibleClassroom ? ['id' => $user->responsibleClassroom->id, 'name' => $user->responsibleClassroom->name] : null,
+        ];
+    });
+    
+    \Log::info('Users returned:', ['count' => $users->count()]);
+    
+    return Inertia::render('Admin/General/Users/Index', [
+        'users' => $users,
+        'filters' => $request->only(['name', 'rol_filter']) // IMPORTANTE: incluir ambos filtros
+    ]);
+}
 
     public function edit(User $usuario)
     {
@@ -103,31 +114,44 @@ public function update(Request $request, User $usuario)
 {
     $validated = $request->validate([
         'name' => 'required|string|max:255',
-        'email' => 'required|string|email|max:255|unique:users,email,'.$usuario->id,
+        'email' => 'required|string|email|max:255|unique:users,email,' . $usuario->id,
         'municipality_id' => 'required|exists:municipality,id',
         'rol_id' => 'required|exists:roles,id',
         'responsible_id' => [
             'nullable',
             function ($attribute, $value, $fail) use ($request) {
                 $rol = Rol::find($request->rol_id);
-                if ($rol->name === 'Administrador estatal' && !$value) {
-                    $fail('El campo responsable es obligatorio para el rol Administrador estatal.');
-                } elseif ($rol->name === 'Administrador estatal') {
-                    $faculty = Faculty::where('id', $value)
+                
+                if (!$rol) {
+                    return;
+                }
+
+                if ($rol->name === 'Administrador estatal') {
+                    if (!$value) {
+                        $fail('El campo responsable es obligatorio para el rol Administrador estatal.');
+                        return;
+                    }
+                    
+                    $exists = Faculty::where('id', $value)
                         ->where('municipality_id', $request->municipality_id)
                         ->exists();
-                    if (!$faculty) {
+                        
+                    if (!$exists) {
                         $fail('La facultad seleccionada no es válida para el municipio elegido.');
                     }
-                } elseif ($rol->name === 'Administrador area' && !$value) {
-                    $fail('El campo responsable es obligatorio para el rol Administrador de área.');
                 } elseif ($rol->name === 'Administrador area') {
-                    $classroom = Classroom::where('id', $value)
+                    if (!$value) {
+                        $fail('El campo responsable es obligatorio para el rol Administrador de área.');
+                        return;
+                    }
+                    
+                    $exists = Classroom::where('id', $value)
                         ->whereHas('faculty', function ($query) use ($request) {
                             $query->where('municipality_id', $request->municipality_id);
                         })
                         ->exists();
-                    if (!$classroom) {
+                        
+                    if (!$exists) {
                         $fail('El aula seleccionada no es válida para el municipio elegido.');
                     }
                 }
@@ -135,184 +159,150 @@ public function update(Request $request, User $usuario)
         ],
     ]);
 
-    // Obtener el rol actual y anterior para manejar cambios
     $rolActual = Rol::find($request->rol_id);
     $rolAnterior = $usuario->rol;
+    $cambioRol = $rolAnterior && $rolAnterior->id !== $rolActual->id;
+
+    DB::beginTransaction();
     
-    // Limpiar responsabilidades anteriores si cambió el rol
-    if ($rolAnterior && $rolAnterior->id !== $rolActual->id) {
-        try {
-            if ($rolAnterior->name === 'Administrador estatal') {
-                Faculty::where('responsible', $usuario->id)
-                    ->update(['responsible' => null]);
-            } elseif ($rolAnterior->name === 'Administrador area') {
-                Classroom::where('responsible', $usuario->id)
-                    ->update(['responsible' => null]);
-            }
-        } catch (\Exception $e) {
-            \Log::error('Error en limpieza por cambio de rol: ' . $e->getMessage());
+    try {
+        // 1. Limpiar responsabilidades del rol anterior si cambió
+        if ($cambioRol) {
+            $this->limpiarResponsabilidadesPorRol($usuario->id, $rolAnterior->name);
         }
+
+        // 2. Actualizar el usuario
+        $usuario->update([
+            'name' => $request->name,
+            'email' => $request->email,
+            'municipality_id' => $request->municipality_id,
+            'rol_id' => $request->rol_id,
+            'responsible_id' => $request->responsible_id,
+        ]);
+
+        // 3. Gestionar responsabilidades según el nuevo rol
+        $this->gestionarResponsabilidades(
+            $usuario->id,
+            $rolActual,
+            $request->responsible_id
+        );
+
+        DB::commit();
+        
+        return redirect()->route('admin.general.usuarios.index')
+            ->with('success', 'Usuario actualizado exitosamente');
+            
+    } catch (\Exception $e) {
+        DB::rollBack();
+        \Log::error('Error al actualizar usuario: ' . $e->getMessage());
+        
+        return redirect()->back()
+            ->withInput()
+            ->with('error', 'Ocurrió un error al actualizar el usuario');
     }
+}
 
-    // Actualizar el usuario
-    $usuario->update([
-        'name' => $request->name,
-        'email' => $request->email,
-        'municipality_id' => $request->municipality_id,
-        'rol_id' => $request->rol_id,
-        'responsible_id' => $request->responsible_id,
-    ]);
+/**
+ * Limpia las responsabilidades según el tipo de rol
+ */
+private function limpiarResponsabilidadesPorRol(int $usuarioId, string $nombreRol): void
+{
+    if ($nombreRol === 'Administrador estatal') {
+        Faculty::where('responsible', $usuarioId)->update(['responsible' => null]);
+    } elseif ($nombreRol === 'Administrador area') {
+        Classroom::where('responsible', $usuarioId)->update(['responsible' => null]);
+    }
+}
 
-    // Actualizar las tablas relacionadas según el rol actual
-    if ($rolActual->name === 'Administrador estatal' && $request->responsible_id) {
-        try {
-            // Limpiar cualquier otro responsable de esta facultad
-            Faculty::where('id', $request->responsible_id)
-                ->update(['responsible' => null]);
+/**
+ * Gestiona las responsabilidades del usuario según su rol
+ */
+private function gestionarResponsabilidades(int $usuarioId, Rol $rol, ?int $responsibleId): void
+{
+    if ($rol->name === 'Administrador estatal') {
+        // Limpiar TODAS las facultades donde este usuario era responsable
+        Faculty::where('responsible', $usuarioId)->update(['responsible' => null]);
+        
+        if ($responsibleId) {
+            // Limpiar otros usuarios con la misma facultad asignada
+            User::where('rol_id', $rol->id)
+                ->where('responsible_id', $responsibleId)
+                ->where('id', '!=', $usuarioId)
+                ->update(['responsible_id' => null]);
             
-            // Asignar el nuevo responsable
-            Log::info("id usuario: {$usuario->id}");
-            Log::info("id de Facultad: {$request->responsible_id}");
+            // Asignar la nueva responsabilidad
+            Faculty::where('id', $responsibleId)->update(['responsible' => $usuarioId]);
             
-            Faculty::where('id', $request->responsible_id)
-                ->update(['responsible' => $usuario->id]);
-        } catch (\Exception $e) {
-            \Log::error('Error en actualización de facultad: ' . $e->getMessage());
+            \Log::info("Usuario {$usuarioId} asignado como responsable de la facultad {$responsibleId}");
         }
         
-    } elseif ($rolActual->name === 'Administrador area' && $request->responsible_id) {
-        try {
-            // Limpiar cualquier otro responsable de esta aula
-            Classroom::where('id', $request->responsible_id)
-                ->update(['responsible' => null]);
-            
-            // Asignar el nuevo responsable
-            Classroom::where('id', $request->responsible_id)
-                ->update(['responsible' => $usuario->id]);
-        } catch (\Exception $e) {
-            \Log::error('Error en actualización de classroom: ' . $e->getMessage());
-        }
-    }
-
-    // Si el usuario ya no tiene responsible_id, limpiar sus responsabilidades
-    if (!$request->responsible_id) {
-        try {
-            if ($rolActual->name === 'Administrador estatal') {
-                Faculty::where('responsible', $usuario->id)
-                    ->update(['responsible' => null]);
-            } elseif ($rolActual->name === 'Administrador area') {
-                Classroom::where('responsible', $usuario->id)
-                    ->update(['responsible' => null]);
-            }
-        } catch (\Exception $e) {
-            \Log::error('Error en limpieza por falta de responsible_id: ' . $e->getMessage());
-        }
-    }
-
-    // LIMPIEZA FINAL: Manejo de responsabilidades duplicadas
-    if ($rolActual->name === 'Administrador estatal') {
-        try {
-            // Limpiar otras facultades donde el usuario sea responsable (excepto la nueva asignación)
-            $query = Faculty::where('responsible', $usuario->id);
-            if ($request->responsible_id) {
-                $query->where('id', '!=', $request->responsible_id);
-            }
-            $query->update(['responsible' => null]);
-            
-        } catch (\Exception $e) {
-            \Log::error('Error en limpieza de facultades: ' . $e->getMessage());
-        }
-
-        // LIMPIAR TABLA USERS: Otros usuarios del mismo rol con el mismo responsible_id
-        if ($request->responsible_id) {
-            try {
-                User::where('rol_id', $rolActual->id)
-                    ->where('responsible_id', $request->responsible_id)
-                    ->where('id', '!=', $usuario->id)
-                    ->update(['responsible_id' => null]);
-                    
-            } catch (\Exception $e) {
-                \Log::error('Error en limpieza de users para Administrador estatal: ' . $e->getMessage());
-            }
-        }
+    } elseif ($rol->name === 'Administrador area') {
+        // Limpiar TODAS las aulas donde este usuario era responsable
+        Classroom::where('responsible', $usuarioId)->update(['responsible' => null]);
         
-    } elseif ($rolActual->name === 'Administrador area') {
-        try {
-            // Limpiar otras aulas donde el usuario sea responsable (excepto la nueva asignación)
-            $query = Classroom::where('responsible', $usuario->id);
-            if ($request->responsible_id) {
-                $query->where('id', '!=', $request->responsible_id);
-            }
-            $query->update(['responsible' => null]);
+        if ($responsibleId) {
+            // Limpiar otros usuarios con la misma aula asignada
+            User::where('rol_id', $rol->id)
+                ->where('responsible_id', $responsibleId)
+                ->where('id', '!=', $usuarioId)
+                ->update(['responsible_id' => null]);
             
-        } catch (\Exception $e) {
-            \Log::error('Error en limpieza de classrooms: ' . $e->getMessage());
-        }
-
-        // LIMPIAR TABLA USERS: Otros usuarios del mismo rol con el mismo responsible_id
-        if ($request->responsible_id) {
-            try {
-                User::where('rol_id', $rolActual->id)
-                    ->where('responsible_id', $request->responsible_id)
-                    ->where('id', '!=', $usuario->id)
-                    ->update(['responsible_id' => null]);
-                    
-            } catch (\Exception $e) {
-                \Log::error('Error en limpieza de users para Administrador area: ' . $e->getMessage());
-            }
+            // Asignar la nueva responsabilidad
+            Classroom::where('id', $responsibleId)->update(['responsible' => $usuarioId]);
         }
     }
-
-    return redirect()->route('admin.general.usuarios.index')
-        ->with('success', 'Usuario actualizado exitosamente');
 }
 public function destroy(User $usuario)
 {
-    // LIMPIEZA PREVIA: Limpiar responsabilidades antes de eliminar el usuario
-    $rol = $usuario->rol;
+    DB::beginTransaction();
     
-    if ($rol && $usuario->responsible_id) {
-        if ($rol->name === 'Administrador estatal') {
-            // Limpiar el campo responsible de la facultad asignada
-            try {
-                Faculty::where('id', $usuario->responsible_id)
-                    ->update(['responsible' => null]);
-                \Log::info("Limpiado responsible de facultad ID: {$usuario->responsible_id} para usuario ID: {$usuario->id}");
-            } catch (\Exception $e) {
-                \Log::error('Error limpiando responsible de facultad: ' . $e->getMessage());
-            }
+    try {
+        $rol = $usuario->rol;
+        
+        // Limpiar todas las referencias del usuario como responsible
+        if ($rol) {
+            $this->limpiarResponsabilidadesAntesDeBorrar($usuario->id, $rol->name);
+        }
+        
+        // Eliminar el usuario
+        $usuario->delete();
+        
+        DB::commit();
+        
+        \Log::info("Usuario ID: {$usuario->id} eliminado exitosamente con todas sus responsabilidades");
+        
+        return redirect()->route('admin.general.usuarios.index')
+            ->with('success', 'Usuario eliminado exitosamente');
             
-        } elseif ($rol->name === 'Administrador area') {
-            // Limpiar el campo responsible de la aula asignada
-            try {
-                Classroom::where('id', $usuario->responsible_id)
-                    ->update(['responsible' => null]);
-                \Log::info("Limpiado responsible de classroom ID: {$usuario->responsible_id} para usuario ID: {$usuario->id}");
-            } catch (\Exception $e) {
-                \Log::error('Error limpiando responsible de classroom: ' . $e->getMessage());
-            }
+    } catch (\Exception $e) {
+        DB::rollBack();
+        \Log::error("Error al eliminar usuario ID: {$usuario->id}: " . $e->getMessage());
+        
+        return redirect()->back()
+            ->with('error', 'Ocurrió un error al eliminar el usuario');
+    }
+}
+
+/**
+ * Limpia todas las responsabilidades del usuario antes de eliminarlo
+ */
+private function limpiarResponsabilidadesAntesDeBorrar(int $usuarioId, string $nombreRol): void
+{
+    if ($nombreRol === 'Administrador estatal') {
+        $filasAfectadas = Faculty::where('responsible', $usuarioId)
+            ->update(['responsible' => null]);
+            
+        if ($filasAfectadas > 0) {
+            \Log::info("Limpiadas {$filasAfectadas} facultad(es) del usuario ID: {$usuarioId}");
+        }
+        
+    } elseif ($nombreRol === 'Administrador area') {
+        $filasAfectadas = Classroom::where('responsible', $usuarioId)
+            ->update(['responsible' => null]);
+            
+        if ($filasAfectadas > 0) {
+            \Log::info("Limpiadas {$filasAfectadas} aula(s) del usuario ID: {$usuarioId}");
         }
     }
-    
-    // LIMPIEZA ADICIONAL: Limpiar cualquier referencia del usuario como responsible en todas las tablas
-    try {
-        // Limpiar de facultades donde este usuario sea responsible (por si hay inconsistencias)
-        Faculty::where('responsible', $usuario->id)
-            ->update(['responsible' => null]);
-        
-        // Limpiar de classrooms donde este usuario sea responsible (por si hay inconsistencias)
-        Classroom::where('responsible', $usuario->id)
-            ->update(['responsible' => null]);
-        
-        \Log::info("Limpiadas todas las referencias del usuario ID: {$usuario->id} como responsible");
-    } catch (\Exception $e) {
-        \Log::error('Error en limpieza adicional de referencias: ' . $e->getMessage());
-    }
-
-    // Finalmente eliminar el usuario
-    $usuario->delete();
-    
-    return redirect()->route('admin.general.usuarios.index')
-        ->with('success', 'Usuario eliminado exitosamente');
 }
 }
