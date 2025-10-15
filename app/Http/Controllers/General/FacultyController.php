@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\General;
 
 use App\Http\Controllers\Controller;
-use App\Models\Faculty;
-use App\Models\Classroom;
+use App\Models\faculty;
+use App\Models\classroom;
 use App\Models\Municipality;
-use App\Models\Complaint_classroom;
-use App\Models\Reservation_classroom;
+use App\Models\complaint_classroom;
+use App\Models\reservation_classroom;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -25,7 +25,7 @@ class FacultyController extends Controller
         $users = User::whereIn('rol_id', [2, 3])->get(['id', 'name', 'rol_id']);
 
         // Cargar todas las facultades sin filtrar por municipality_id
-        $faculties = Faculty::with(['classrooms', 'responsibleUser'])->get();
+        $faculties = faculty::with(['classrooms', 'responsibleUser'])->get();
 
         return Inertia::render('Admin/General/Faculties/Index', [
             'faculties' => $faculties,
@@ -89,7 +89,7 @@ public function store(Request $request)
         $facultyData = $this->prepararDatosFacultad($request);
         
         // 4. Crear la facultad
-        $faculty = Faculty::create($facultyData);
+        $faculty = faculty::create($facultyData);
         
         // 5. Asignar responsable de la facultad
         if ($request->responsible) {
@@ -148,11 +148,11 @@ private function recolectarResponsables(Request $request): array
 private function limpiarResponsabilidadesPrevias(array $responsablesIds): void
 {
     // Limpiar en faculties (batch)
-    Faculty::whereIn('responsible', $responsablesIds)
+    faculty::whereIn('responsible', $responsablesIds)
         ->update(['responsible' => null]);
     
     // Limpiar en classrooms (batch)
-    Classroom::whereIn('responsible', $responsablesIds)
+    classroom::whereIn('responsible', $responsablesIds)
         ->update(['responsible' => null]);
     
     // Limpiar en users (batch)
@@ -196,7 +196,7 @@ private function prepararDatosFacultad(Request $request): array
 /**
  * Crea los classrooms y asigna sus responsables
  */
-private function crearClassrooms(array $classroomsData, Faculty $faculty): void
+private function crearClassrooms(array $classroomsData, faculty $faculty): void
 {
     $responsablesToUpdate = [];
     
@@ -239,7 +239,7 @@ private function crearClassrooms(array $classroomsData, Faculty $faculty): void
     }
 }
 
-    public function edit(Faculty $faculty)
+    public function edit(faculty $faculty)
     {
         $faculty->load('classrooms');
         $municipalities = Municipality::all();
@@ -252,7 +252,7 @@ private function crearClassrooms(array $classroomsData, Faculty $faculty): void
         ]);
     }
 
-public function update(Request $request, Faculty $faculty)
+public function update(Request $request, faculty $faculty)
 {
     $validated = $request->validate([
         'name' => 'required|string|max:255',
@@ -353,7 +353,7 @@ private function obtenerClassroomIdsEnviados(Request $request): array
 /**
  * Determina qué classrooms deben eliminarse
  */
-private function determinarClassroomsAEliminar(Faculty $faculty, array $submittedIds): array
+private function determinarClassroomsAEliminar(faculty $faculty, array $submittedIds): array
 {
     $existingIds = $faculty->classrooms->pluck('id')->toArray();
     return array_diff($existingIds, $submittedIds);
@@ -371,14 +371,14 @@ private function limpiarResponsabilidadesPreviasUpdate(
 {
     foreach ($responsablesIds as $responsableId) {
         // Limpiar faculties (excepto la actual si es su responsable)
-        $facultyQuery = Faculty::where('responsible', $responsableId);
+        $facultyQuery = faculty::where('responsible', $responsableId);
         if ($responsableId == $responsableFacultad) {
             $facultyQuery->where('id', '!=', $facultyId);
         }
         $facultyQuery->update(['responsible' => null]);
         
         // Limpiar classrooms (excepto los que se están actualizando con este responsable)
-        $classroomQuery = Classroom::where('responsible', $responsableId);
+        $classroomQuery = classroom::where('responsible', $responsableId);
         if (!empty($classroomIdsExcluir)) {
             $classroomQuery->whereNotIn('id', $classroomIdsExcluir);
         }
@@ -397,7 +397,7 @@ private function limpiarResponsabilidadesPreviasUpdate(
 private function eliminarClassrooms(array $classroomIds): void
 {
     // 1. Obtener responsables antes de eliminar
-    $responsables = Classroom::whereIn('id', $classroomIds)
+    $responsables = classroom::whereIn('id', $classroomIds)
         ->pluck('responsible')
         ->filter()
         ->unique()
@@ -409,11 +409,11 @@ private function eliminarClassrooms(array $classroomIds): void
         ->update(['responsible_id' => null]);
     
     // 3. Eliminar reservaciones y quejas (batch)
-    Reservation_classroom::whereIn('classroom_id', $classroomIds)->delete();
-    Complaint_classroom::whereIn('classroom_id', $classroomIds)->delete();
+    reservation_classroom::whereIn('classroom_id', $classroomIds)->delete();
+    complaint_classroom::whereIn('classroom_id', $classroomIds)->delete();
     
     // 4. Eliminar imágenes
-    $classrooms = Classroom::whereIn('id', $classroomIds)->get();
+    $classrooms = classroom::whereIn('id', $classroomIds)->get();
     foreach ($classrooms as $classroom) {
         if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
             Storage::disk('public')->delete($classroom->image_path);
@@ -421,7 +421,7 @@ private function eliminarClassrooms(array $classroomIds): void
     }
     
     // 5. Eliminar classrooms
-    Classroom::whereIn('id', $classroomIds)->delete();
+    classroom::whereIn('id', $classroomIds)->delete();
     
     \Log::info("Eliminados " . count($classroomIds) . " classrooms");
 }
@@ -429,7 +429,7 @@ private function eliminarClassrooms(array $classroomIds): void
 /**
  * Prepara los datos de la facultad para actualización
  */
-private function prepararDatosFacultadUpdate(Request $request, Faculty $faculty): array
+private function prepararDatosFacultadUpdate(Request $request, faculty $faculty): array
 {
     $data = $request->only([
         'name',
@@ -490,7 +490,7 @@ private function gestionarResponsableFacultad(int $facultyId, ?int $responsableI
 /**
  * Procesa los classrooms (crear/actualizar)
  */
-private function procesarClassrooms(array $classroomsData, Faculty $faculty): void
+private function procesarClassrooms(array $classroomsData, faculty $faculty): void
 {
     foreach ($classroomsData as $classroomData) {
         $classroom = [
@@ -522,7 +522,7 @@ private function procesarImagenClassroom(array $classroomData, array &$classroom
     if ($classroomData['image_option'] === 'upload' && isset($classroomData['image_file'])) {
         // Eliminar imagen anterior si existe
         if (isset($classroomData['id'])) {
-            $existingClassroom = Classroom::find($classroomData['id']);
+            $existingClassroom = classroom::find($classroomData['id']);
             if ($existingClassroom && $existingClassroom->image_path) {
                 Storage::disk('public')->delete($existingClassroom->image_path);
             }
@@ -532,7 +532,7 @@ private function procesarImagenClassroom(array $classroomData, array &$classroom
     } elseif ($classroomData['image_option'] === 'url') {
         // Eliminar imagen anterior si existe
         if (isset($classroomData['id'])) {
-            $existingClassroom = Classroom::find($classroomData['id']);
+            $existingClassroom = classroom::find($classroomData['id']);
             if ($existingClassroom && $existingClassroom->image_path) {
                 Storage::disk('public')->delete($existingClassroom->image_path);
             }
@@ -545,10 +545,10 @@ private function procesarImagenClassroom(array $classroomData, array &$classroom
 /**
  * Crea o actualiza un classroom
  */
-private function crearOActualizarClassroom(array $classroomData, array $classroom, Faculty $faculty): int
+private function crearOActualizarClassroom(array $classroomData, array $classroom, faculty $faculty): int
 {
     if (isset($classroomData['id']) && $classroomData['id']) {
-        Classroom::where('id', $classroomData['id'])->update($classroom);
+        classroom::where('id', $classroomData['id'])->update($classroom);
         return $classroomData['id'];
     } else {
         $newClassroom = $faculty->classrooms()->create($classroom);
@@ -579,7 +579,7 @@ private function gestionarResponsableClassroom(int $classroomId, ?int $responsab
     }
 }
 
-public function destroy(Faculty $faculty)
+public function destroy(faculty $faculty)
 {
     DB::beginTransaction();
     
@@ -601,8 +601,8 @@ public function destroy(Faculty $faculty)
         
         // 4. Eliminar reservaciones y quejas en una sola operación
         if (!empty($classroomIds)) {
-            Reservation_classroom::whereIn('classroom_id', $classroomIds)->delete();
-            Complaint_classroom::whereIn('classroom_id', $classroomIds)->delete();
+            reservation_classroom::whereIn('classroom_id', $classroomIds)->delete();
+            complaint_classroom::whereIn('classroom_id', $classroomIds)->delete();
         }
         
         // 5. Eliminar imágenes de classrooms
@@ -610,7 +610,7 @@ public function destroy(Faculty $faculty)
         
         // 6. Eliminar todos los classrooms
         if (!empty($classroomIds)) {
-            Classroom::whereIn('id', $classroomIds)->delete();
+            classroom::whereIn('id', $classroomIds)->delete();
         }
         
         // 7. Eliminar imagen de la facultad
@@ -654,7 +654,7 @@ private function eliminarImagenesClassrooms($classrooms): void
 /**
  * Elimina la imagen de la facultad
  */
-private function eliminarImagenFacultad(Faculty $faculty): void
+private function eliminarImagenFacultad(faculty $faculty): void
 {
     if ($faculty->image && 
         !str_starts_with($faculty->image, 'http') && 
