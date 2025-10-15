@@ -174,7 +174,7 @@ const getRoleColorClasses = (rolName) => {
                                 </tr>
                                 <tr v-if="users.length === 0" class="border-b dark:border-gray-600">
                                     <td colspan="5" class="py-4 px-4 text-center text-gray-800 dark:text-gray-200">
-                                        No hay usuarios para mostrar
+                                        No hay usuarios para mostrar.
                                         <span v-if="filters.name || filters.rol_filter" class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
                                             Intenta cambiar los filtros de búsqueda
                                         </span>
