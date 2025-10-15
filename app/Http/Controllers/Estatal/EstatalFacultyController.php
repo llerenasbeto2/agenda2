@@ -86,19 +86,16 @@ public function index(Request $request)
 public function storeClassroom(Request $request)
 {
     $user = Auth::user();
-    $faculty = null;
-
-    if ($user->rol_id === 3 && $user->responsible_id) {
-        $faculty = Faculty::find($user->responsible_id);
-    } elseif ($user->rol_id === 2 && $user->faculty_id) {
-        $faculty = Faculty::find($user->faculty_id);
-    }
-
+    
+    // 1. Obtener la facultad según el rol
+    $faculty = $this->obtenerFacultadDelUsuario($user);
+    
     if (!$faculty) {
         return redirect()->route('admin.estatal.faculties.index')
             ->with('error', 'No tienes una facultad asignada para crear aulas.');
     }
-
+    
+    // 2. Validar request
     $validated = $request->validate([
         'name' => 'required|string|max:255',
         'capacity' => 'required|integer|min:1',
@@ -111,67 +108,110 @@ public function storeClassroom(Request $request)
         'image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:image_option,upload',
         'uses_db_storage' => 'required|boolean',
     ]);
-
-    DB::transaction(function () use ($validated, $faculty, $request) {
-        // Limpiar responsables duplicados si se va a asignar uno
+    
+    DB::beginTransaction();
+    
+    try {
+        // 3. Limpiar responsabilidades previas si se va a asignar uno
         if ($validated['responsible']) {
-            try {
-                // Limpiar responsables duplicados en faculties usando Eloquent
-                Faculty::where('responsible', $validated['responsible'])
-                    ->update(['responsible' => null]);
-                
-                // Limpiar responsables duplicados en classrooms usando Eloquent
-                Classroom::where('responsible', $validated['responsible'])
-                    ->update(['responsible' => null]);
-                
-                // Limpiar asignaciones previas en users usando Eloquent
-                User::where('id', $validated['responsible'])
-                    ->whereIn('rol_id', [2, 3])
-                    ->update(['responsible_id' => null]);
-                    
-            } catch (\Exception $e) {
-                \Log::error('Error en limpieza de responsable ID: ' . $validated['responsible'] . ' - ' . $e->getMessage());
-            }
+            $this->limpiarResponsabilidadesPrevias([$validated['responsible']]);
         }
-
-        $classroom = [
-            'faculty_id' => $faculty->id,
-            'name' => $validated['name'],
-            'capacity' => $validated['capacity'],
-            'services' => $validated['services'],
-            'responsible' => $validated['responsible'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'],
-            'uses_db_storage' => $validated['uses_db_storage'],
-        ];
-
-        if ($validated['image_option'] === 'upload' && $request->hasFile('image_file')) {
-            $classroom['image_url'] = null;
-            $classroom['image_path'] = $request->file('image_file')->store('classrooms', 'public');
-        } elseif ($validated['image_option'] === 'url') {
-            $classroom['image_url'] = $validated['image_url'];
-            $classroom['image_path'] = null;
-        } else {
-            $classroom['image_url'] = null;
-            $classroom['image_path'] = null;
-        }
-
-        $createdClassroom = Classroom::create($classroom);
-
-        // Actualizar tabla users para el responsable del classroom creado usando Eloquent
+        
+        // 4. Preparar datos del classroom
+        $classroomData = $this->prepararDatosClassroom($validated, $faculty->id, $request);
+        
+        // 5. Crear el classroom
+        $classroom = Classroom::create($classroomData);
+        
+        // 6. Asignar responsable en tabla users
         if ($validated['responsible']) {
-            try {
-                User::where('id', $validated['responsible'])
-                    ->where('rol_id', 2)
-                    ->update(['responsible_id' => $createdClassroom->id]);
-            } catch (\Exception $e) {
-                \Log::error('Error al asignar responsable de classroom: ' . $e->getMessage());
-            }
+            User::where('id', $validated['responsible'])
+                ->where('rol_id', 2)
+                ->update(['responsible_id' => $classroom->id]);
         }
-    });
+        
+        DB::commit();
+        
+        \Log::info("Classroom ID {$classroom->id} creado exitosamente en facultad ID {$faculty->id}");
+        
+        return redirect()->route('admin.estatal.faculties.index')
+            ->with('success', 'Aula creada con éxito.');
+            
+    } catch (\Exception $e) {
+        DB::rollBack();
+        \Log::error("Error al crear classroom: " . $e->getMessage());
+        
+        return redirect()->back()
+            ->withInput()
+            ->with('error', 'Error al crear el aula.');
+    }
+}
 
-    return redirect()->route('admin.estatal.faculties.index')
-        ->with('success', 'Aula creada con éxito.');
+    private function limpiarResponsabilidadesPrevias(array $responsablesIds): void
+{
+    if (empty($responsablesIds)) {
+        return;
+    }
+    
+    // Limpiar en faculties (batch)
+    Faculty::whereIn('responsible', $responsablesIds)
+        ->update(['responsible' => null]);
+    
+    // Limpiar en classrooms (batch)
+    Classroom::whereIn('responsible', $responsablesIds)
+        ->update(['responsible' => null]);
+    
+    // Limpiar en users (batch)
+    User::whereIn('id', $responsablesIds)
+        ->whereIn('rol_id', [2, 3])
+        ->update(['responsible_id' => null]);
+}
+
+/**
+ * Obtiene la facultad según el rol del usuario
+ */
+private function obtenerFacultadDelUsuario(User $user): ?Faculty
+{
+    if ($user->rol_id === 3 && $user->responsible_id) {
+        return Faculty::find($user->responsible_id);
+    }
+    
+    if ($user->rol_id === 2 && $user->faculty_id) {
+        return Faculty::find($user->faculty_id);
+    }
+    
+    return null;
+}
+
+/**
+ * Prepara los datos del classroom
+ */
+private function prepararDatosClassroom(array $validated, int $facultyId, Request $request): array
+{
+    $classroom = [
+        'faculty_id' => $facultyId,
+        'name' => $validated['name'],
+        'capacity' => $validated['capacity'],
+        'services' => $validated['services'],
+        'responsible' => $validated['responsible'] ?? null,
+        'email' => $validated['email'] ?? null,
+        'phone' => $validated['phone'] ?? null,
+        'uses_db_storage' => $validated['uses_db_storage'],
+    ];
+    
+    // Procesar imagen
+    if ($validated['image_option'] === 'upload' && $request->hasFile('image_file')) {
+        $classroom['image_url'] = null;
+        $classroom['image_path'] = $request->file('image_file')->store('classrooms', 'public');
+    } elseif ($validated['image_option'] === 'url') {
+        $classroom['image_url'] = $validated['image_url'] ?? null;
+        $classroom['image_path'] = null;
+    } else {
+        $classroom['image_url'] = null;
+        $classroom['image_path'] = null;
+    }
+    
+    return $classroom;
 }
 
     public function createClassroom()
@@ -230,22 +270,17 @@ public function storeClassroom(Request $request)
         ]);
     }
 
-   public function updateClassroom(Request $request, Classroom $classroom)
+public function updateClassroom(Request $request, Classroom $classroom)
 {
     $user = Auth::user();
-    $faculty = null;
-
-    if ($user->rol_id === 3 && $user->responsible_id) {
-        $faculty = Faculty::find($user->responsible_id);
-    } elseif ($user->rol_id === 2 && $user->faculty_id) {
-        $faculty = Faculty::find($user->faculty_id);
-    }
-
-    if (!$faculty || $classroom->faculty_id !== $faculty->id || ($user->rol_id === 2 && $classroom->responsible !== $user->id)) {
+    
+    // 1. Verificar permisos
+    if (!$this->verificarPermisosClassroom($user, $classroom)) {
         return redirect()->route('admin.estatal.faculties.index')
             ->with('error', 'No tienes permisos para editar esta aula.');
     }
-
+    
+    // 2. Validar request
     $validated = $request->validate([
         'name' => 'required|string|max:255',
         'capacity' => 'required|integer|min:1',
@@ -258,204 +293,188 @@ public function storeClassroom(Request $request)
         'image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:image_option,upload',
         'uses_db_storage' => 'required|boolean',
     ]);
-
-    DB::transaction(function () use ($validated, $classroom, $request) {
-        // LIMPIEZA DE RESPONSABLES DUPLICADOS (solo si se va a asignar un responsable)
+    
+    DB::beginTransaction();
+    
+    try {
+        // 3. Limpiar responsabilidades previas si se va a asignar uno
         if ($validated['responsible']) {
-            try {
-                // Limpiar responsables duplicados en faculties usando Eloquent
-                Faculty::where('responsible', $validated['responsible'])
-                    ->update(['responsible' => null]);
-                
-                // Limpiar responsables duplicados en classrooms usando Eloquent 
-                // (excluyendo el classroom actual que estamos actualizando)
-                Classroom::where('responsible', $validated['responsible'])
-                    ->where('id', '!=', $classroom->id)
-                    ->update(['responsible' => null]);
-                
-                // Limpiar asignaciones previas en users usando Eloquent
-                User::where('id', $validated['responsible'])
-                    ->whereIn('rol_id', [2, 3])
-                    ->update(['responsible_id' => null]);
-                    
-            } catch (\Exception $e) {
-                \Log::error('Error en limpieza de responsable ID: ' . $validated['responsible'] . ' - ' . $e->getMessage());
-            }
+            $this->limpiarResponsabilidadesPreviasUpdate(
+                $validated['responsible'], 
+                $classroom->id
+            );
         }
-
-        // Actualizar los datos del classroom
+        
+        // 4. Actualizar datos básicos del classroom
         $classroom->fill([
             'name' => $validated['name'],
             'capacity' => $validated['capacity'],
             'services' => $validated['services'],
-            'responsible' => $validated['responsible'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'],
+            'responsible' => $validated['responsible'] ?? null,
+            'email' => $validated['email'] ?? null,
+            'phone' => $validated['phone'] ?? null,
             'uses_db_storage' => $validated['uses_db_storage'],
         ]);
-
-        // Manejar la imagen
-        if ($validated['image_option'] === 'upload' && $request->hasFile('image_file')) {
-            if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
-                Storage::disk('public')->delete($classroom->image_path);
-            }
-            $classroom->image_url = null;
-            $classroom->image_path = $request->file('image_file')->store('classrooms', 'public');
-        } elseif ($validated['image_option'] === 'url') {
-            if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
-                Storage::disk('public')->delete($classroom->image_path);
-            }
-            $classroom->image_url = $validated['image_url'];
-            $classroom->image_path = null;
-        }
-
+        
+        // 5. Procesar imagen
+        $this->procesarImagenClassroom($validated, $classroom, $request);
+        
+        // 6. Guardar classroom
         $classroom->save();
-
-        // ACTUALIZACIÓN DE RESPONSABILIDADES EN TABLA USERS
-        if ($validated['responsible']) {
-            try {
-                // Limpiar usuarios asociados al classroom actual
-                User::where('responsible_id', $classroom->id)
-                    ->where('rol_id', 2)
-                    ->update(['responsible_id' => null]);
-                
-                // Asignar el nuevo responsable al classroom actual
-                User::where('id', $validated['responsible'])
-                    ->where('rol_id', 2)
-                    ->update(['responsible_id' => $classroom->id]);
-                    
-                \Log::info("Responsable ID {$validated['responsible']} asignado correctamente al classroom ID {$classroom->id}");
-            } catch (\Exception $e) {
-                \Log::error('Error al asignar responsable de classroom: ' . $e->getMessage());
-            }
-        } else {
-            // Si no hay responsable, limpiar cualquier usuario asociado a este classroom
-            User::where('responsible_id', $classroom->id)
-                ->where('rol_id', 2)
-                ->update(['responsible_id' => null]);
-        }
-    });
-
-    return redirect()->route('admin.estatal.faculties.index')
-        ->with('success', 'Aula actualizada con éxito.');
+        
+        // 7. Gestionar responsable en tabla users
+        $this->gestionarResponsableClassroom($classroom->id, $validated['responsible'] ?? null);
+        
+        DB::commit();
+        
+        \Log::info("Classroom ID {$classroom->id} actualizado exitosamente");
+        
+        return redirect()->route('admin.estatal.faculties.index')
+            ->with('success', 'Aula actualizada con éxito.');
+            
+    } catch (\Exception $e) {
+        DB::rollBack();
+        \Log::error("Error al actualizar classroom ID {$classroom->id}: " . $e->getMessage());
+        
+        return redirect()->back()
+            ->withInput()
+            ->with('error', 'Error al actualizar el aula.');
+    }
 }
 
-public function destroyClassroom(Classroom $classroom)
+/**
+ * Procesa la imagen del classroom
+ */
+private function procesarImagenClassroom(array $validated, Classroom $classroom, Request $request): void
 {
-    $user = Auth::user();
-    $faculty = null;
+    if ($validated['image_option'] === 'upload' && $request->hasFile('image_file')) {
+        // Eliminar imagen anterior si existe
+        if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
+            Storage::disk('public')->delete($classroom->image_path);
+        }
+        $classroom->image_url = null;
+        $classroom->image_path = $request->file('image_file')->store('classrooms', 'public');
+    } elseif ($validated['image_option'] === 'url') {
+        // Eliminar imagen anterior si existe
+        if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
+            Storage::disk('public')->delete($classroom->image_path);
+        }
+        $classroom->image_url = $validated['image_url'] ?? null;
+        $classroom->image_path = null;
+    }
+}
 
+/**
+ * Verifica permisos para editar un classroom
+ */
+private function verificarPermisosClassroom(User $user, Classroom $classroom): bool
+{
+    $faculty = null;
+    
     if ($user->rol_id === 3 && $user->responsible_id) {
         $faculty = Faculty::find($user->responsible_id);
     } elseif ($user->rol_id === 2 && $user->faculty_id) {
         $faculty = Faculty::find($user->faculty_id);
     }
+    
+    if (!$faculty || $classroom->faculty_id !== $faculty->id) {
+        return false;
+    }
+    
+    // Administrador area solo puede editar su propia aula
+    if ($user->rol_id === 2 && $classroom->responsible !== $user->id) {
+        return false;
+    }
+    
+    return true;
+}
 
-    if (!$faculty || $classroom->faculty_id !== $faculty->id || ($user->rol_id === 2 && $classroom->responsible !== $user->id)) {
+/**
+ * Limpia responsabilidades previas excluyendo el classroom actual
+ */
+private function limpiarResponsabilidadesPreviasUpdate(int $responsableId, int $classroomId): void
+{
+    // Limpiar faculties
+    Faculty::where('responsible', $responsableId)
+        ->update(['responsible' => null]);
+    
+    // Limpiar otros classrooms (excepto el actual)
+    Classroom::where('responsible', $responsableId)
+        ->where('id', '!=', $classroomId)
+        ->update(['responsible' => null]);
+    
+    // Limpiar users
+    User::where('id', $responsableId)
+        ->whereIn('rol_id', [2, 3])
+        ->update(['responsible_id' => null]);
+}
+
+/**
+ * Gestiona el responsable de un classroom
+ */
+private function gestionarResponsableClassroom(int $classroomId, ?int $responsableId): void
+{
+    if ($responsableId) {
+        // Limpiar usuarios previos con este classroom asignado
+        User::where('responsible_id', $classroomId)
+            ->where('rol_id', 2)
+            ->update(['responsible_id' => null]);
+        
+        // Asignar nuevo responsable
+        User::where('id', $responsableId)
+            ->where('rol_id', 2)
+            ->update(['responsible_id' => $classroomId]);
+    } else {
+        // Si no hay responsable, limpiar todos
+        User::where('responsible_id', $classroomId)
+            ->where('rol_id', 2)
+            ->update(['responsible_id' => null]);
+    }
+}
+
+public function destroyClassroom(Classroom $classroom)
+{
+    $user = Auth::user();
+    
+    // 1. Verificar permisos (reutiliza el método)
+    if (!$this->verificarPermisosClassroom($user, $classroom)) {
         return redirect()->route('admin.estatal.faculties.index')
             ->with('error', 'No tienes permisos para eliminar esta aula.');
     }
-
-    DB::transaction(function () use ($classroom) {
-        // LIMPIEZA PREVIA: Limpiar responsabilidades antes de eliminar el classroom
-        try {
-            // 1. Limpiar usuarios que tienen este classroom como responsible_id (rol_id = 2 - Administrador área)
-            $affectedUsers = User::where('responsible_id', $classroom->id)
-                ->where('rol_id', 2)
-                ->update(['responsible_id' => null]);
-            \Log::info("Limpiados {$affectedUsers} usuarios con responsible_id de classroom ID: {$classroom->id}");
+    
+    DB::beginTransaction();
+    
+    try {
+        // 2. Limpiar usuarios asociados
+        User::where('responsible_id', $classroom->id)
+            ->where('rol_id', 2)
+            ->update(['responsible_id' => null]);
+        
+        // 3. Eliminar reservaciones y quejas
+        Reservation_classroom::where('classroom_id', $classroom->id)->delete();
+        Complaint_classroom::where('classroom_id', $classroom->id)->delete();
+        
+        // 4. Eliminar imagen si existe
+        if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
+            Storage::disk('public')->delete($classroom->image_path);
+        }
+        
+        // 5. Eliminar el classroom
+        $classroom->delete();
+        
+        DB::commit();
+        
+        \Log::info("Classroom ID {$classroom->id} eliminado exitosamente");
+        
+        return redirect()->route('admin.estatal.faculties.index')
+            ->with('success', 'Aula eliminada con éxito.');
             
-        } catch (\Exception $e) {
-            \Log::error('Error limpiando usuarios de classroom ID ' . $classroom->id . ': ' . $e->getMessage());
-        }
-
-        // LIMPIEZA ADICIONAL: Verificar y limpiar cualquier referencia residual del responsable
-        if ($classroom->responsible) {
-            try {
-                // 2. Limpiar si el responsable de este classroom es responsable de otros classrooms
-                $otherClassrooms = Classroom::where('responsible', $classroom->responsible)
-                    ->where('id', '!=', $classroom->id)
-                    ->update(['responsible' => null]);
-                \Log::info("Limpiadas {$otherClassrooms} referencias de responsable en otros classrooms");
-                
-                // 3. Limpiar si el responsable de este classroom es responsable de alguna facultad
-                $facultiesAffected = Faculty::where('responsible', $classroom->responsible)
-                    ->update(['responsible' => null]);
-                \Log::info("Limpiadas {$facultiesAffected} referencias de responsable en facultades");
-                
-                // 4. Limpiar cualquier asignación residual del responsable en la tabla users
-                User::where('id', $classroom->responsible)
-                    ->whereIn('rol_id', [2, 3])
-                    ->update(['responsible_id' => null]);
-                \Log::info("Limpiada asignación residual del responsable ID: {$classroom->responsible}");
-                
-            } catch (\Exception $e) {
-                \Log::error('Error en limpieza adicional del responsable ID ' . $classroom->responsible . ': ' . $e->getMessage());
-            }
-        }
-
-        // 5. Eliminar reservaciones asociadas al classroom
-        try {
-            $deletedReservations = Reservation_classroom::where('classroom_id', $classroom->id)->delete();
-            \Log::info("Eliminadas {$deletedReservations} reservaciones del classroom ID: {$classroom->id}");
-        } catch (\Exception $e) {
-            \Log::error('Error eliminando reservaciones del classroom ID ' . $classroom->id . ': ' . $e->getMessage());
-        }
-
-        // 6. Eliminar quejas asociadas al classroom
-        try {
-            $deletedComplaints = Complaint_classroom::where('classroom_id', $classroom->id)->delete();
-            \Log::info("Eliminadas {$deletedComplaints} quejas del classroom ID: {$classroom->id}");
-        } catch (\Exception $e) {
-            \Log::error('Error eliminando quejas del classroom ID ' . $classroom->id . ': ' . $e->getMessage());
-        }
-
-        // 7. Eliminar imagen del classroom si existe
-        try {
-            if ($classroom->image_path && Storage::disk('public')->exists($classroom->image_path)) {
-                Storage::disk('public')->delete($classroom->image_path);
-                \Log::info("Imagen eliminada del classroom ID: {$classroom->id}");
-            }
-        } catch (\Exception $e) {
-            \Log::error('Error eliminando imagen del classroom ID ' . $classroom->id . ': ' . $e->getMessage());
-        }
-
-        // 8. Finalmente eliminar el classroom
-        try {
-            $classroomId = $classroom->id;
-            $classroomName = $classroom->name;
-            $classroom->delete();
-            \Log::info("Classroom ID {$classroomId} - {$classroomName} eliminado exitosamente");
-        } catch (\Exception $e) {
-            \Log::error('Error eliminando classroom ID ' . $classroom->id . ': ' . $e->getMessage());
-            throw $e; // Re-lanzar la excepción para que la transacción se revierta
-        }
-    });
-
-    return redirect()->route('admin.estatal.faculties.index')
-        ->with('success', 'Aula eliminada con éxito.');
+    } catch (\Exception $e) {
+        DB::rollBack();
+        \Log::error("Error al eliminar classroom ID {$classroom->id}: " . $e->getMessage());
+        
+        return redirect()->back()
+            ->with('error', 'Error al eliminar el aula.');
+    }
 }
-
-    /**
-     * NUEVOS MÉTODOS AUXILIARES PARA MANEJAR SINCRONIZACIÓN
-     */
-    private function updateUserResponsibility($userId, $type, $entityId)
-    {
-        $user = User::find($userId);
-        if ($user) {
-            if ($type === 'classroom') {
-                // Limpiar responsabilidades previas del usuario
-                $this->clearUserResponsibility($userId, 'all');
-                $user->update(['responsible_id' => $entityId]);
-            }
-        }
-    }
-
-    private function clearUserResponsibility($userId, $type = 'all')
-    {
-        $user = User::find($userId);
-        if ($user) {
-            $user->update(['responsible_id' => null]);
-        }
-    }
 }

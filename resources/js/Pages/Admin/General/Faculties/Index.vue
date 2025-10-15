@@ -176,11 +176,6 @@ const truncateText = (text, maxLength = 100) => {
                                         <ul class="list-disc list-inside mt-2">
                                             <li v-for="classroom in selectedFaculty.classrooms" :key="classroom.id" class="break-words">
                                                 {{ classroom.name }} (Cap: {{ classroom.capacity }})
-                                                <img v-if="classroom.image_url || classroom.image_path" 
-         :src="classroom.image_url || `/storage/${classroom.image_path}`" 
-         alt="Classroom Image" 
-         class="w-6 h-6 object-cover rounded" 
-         @error="e => e.target.style.display = 'none'" />
                                             </li>
                                             <li v-if="!selectedFaculty.classrooms.length" class="text-gray-500 dark:text-gray-400">
                                                 Sin aulas

@@ -19,12 +19,11 @@ const form = useForm({
     services: props.faculty.services || '',
     description: props.faculty.description || '',
     web_site: props.faculty.web_site || '',
-    image_option: props.faculty.image ? (props.faculty.image.includes('http') ? 'url' : 'upload') : 'none',
+    image_option: props.faculty.image ? (props.faculty.image.includes('http') ? 'url' : 'upload') : 'url',
     image_url: props.faculty.image && props.faculty.image.includes('http') ? props.faculty.image : '',
     image_file: null,
 });
 
-// FIX AQUÍ: Agregar image_path en el map para preservar el path local de uploads en classrooms
 const classrooms = ref(props.faculty.classrooms.map(classroom => ({
     id: classroom.id,
     name: classroom.name || '',
@@ -33,9 +32,8 @@ const classrooms = ref(props.faculty.classrooms.map(classroom => ({
     responsible: classroom.responsible || '',
     email: classroom.email || '',
     phone: classroom.phone || '',
-    image_option: !classroom.image_url && !classroom.image_path ? 'none' : (classroom.image_url ? 'url' : 'upload'),
+    image_option: classroom.image_url ? 'url' : classroom.image_path ? 'upload' : 'url',
     image_url: classroom.image_url || '',
-    image_path: classroom.image_path || '',  // <-- ESTO ES EL FIX PRINCIPAL
     image_file: null,
     uses_db_storage: classroom.uses_db_storage || false,
 })));
@@ -49,9 +47,8 @@ const addClassroom = () => {
         responsible: '',
         email: '',
         phone: '',
-        image_option: 'none',
+        image_option: 'url',
         image_url: '',
-        image_path: '',  // Agregado para consistencia
         image_file: null,
         uses_db_storage: false,
     });
@@ -238,12 +235,8 @@ const submit = () => {
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen (Opcional)</label>
-                                <div class="flex flex-wrap gap-4 mb-2">
-                                    <label class="flex items-center">
-                                        <input type="radio" v-model="form.image_option" value="none" class="mr-2" />
-                                        Ninguna
-                                    </label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen</label>
+                                <div class="flex space-x-4 mb-2">
                                     <label class="flex items-center">
                                         <input type="radio" v-model="form.image_option" value="url" class="mr-2" />
                                         URL
@@ -257,21 +250,13 @@ const submit = () => {
                                     <input id="image_url" type="url" v-model="form.image_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                     <div v-if="form.errors.image_url" class="text-red-500 text-sm mt-1">{{ form.errors.image_url }}</div>
                                 </div>
-                                <div v-else-if="form.image_option === 'upload'">
+                                <div v-else>
                                     <input id="image_file" type="file" accept="image/*" @change="handleImageFile($event, form)" class="mt-1 block w-full" />
                                     <div v-if="form.errors.image_file" class="text-red-500 text-sm mt-1">{{ form.errors.image_file }}</div>
-                                    <!-- FIX: Mejorar preview para upload, usando props directamente si no hay nueva file -->
                                     <div v-if="props.faculty.image && !form.image_file" class="mt-2">
-                                        <img :src="props.faculty.image.includes('http') ? props.faculty.image : `/storage/${props.faculty.image}`" alt="Current Image" class="w-32 h-32 object-cover rounded" @error="e => e.target.src = '/images/placeholder.png'" />
-                                        <p class="text-sm text-gray-500">Imagen actual (se reemplazará si subes nueva).</p>
+                                        <img :src="props.faculty.image.includes('http') ? props.faculty.image : `/storage/${props.faculty.image}`" alt="Current Image" class="w-32 h-32 object-cover rounded" />
                                     </div>
                                 </div>
-                                <!-- Preview general si no none -->
-                                <div v-if="props.faculty.image && form.image_option !== 'none'" class="mt-2">
-                                    <img :src="props.faculty.image.includes('http') ? props.faculty.image : `/storage/${props.faculty.image}`" alt="Current Image" class="w-32 h-32 object-cover rounded" @error="e => e.target.src = '/images/placeholder.png'" />
-                                    <p class="text-sm text-gray-500">Imagen actual.</p>
-                                </div>
-                                <div class="text-sm text-gray-500 mt-1">La imagen es opcional.</div>
                             </div>
 
                             <div>
@@ -322,12 +307,8 @@ const submit = () => {
                                         <div v-if="form.errors[`classrooms.${index}.phone`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.phone`] }}</div>
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen del Aula (Opcional)</label>
-                                        <div class="flex flex-wrap gap-4 mb-2">
-                                            <label class="flex items-center">
-                                                <input type="radio" v-model="classroom.image_option" value="none" class="mr-2" />
-                                                Ninguna
-                                            </label>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen</label>
+                                        <div class="flex space-x-4 mb-2">
                                             <label class="flex items-center">
                                                 <input type="radio" v-model="classroom.image_option" value="url" class="mr-2" />
                                                 URL
@@ -341,26 +322,16 @@ const submit = () => {
                                             <input :id="'classroom_image_url_' + index" type="url" v-model="classroom.image_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                             <div v-if="form.errors[`classrooms.${index}.image_url`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.image_url`] }}</div>
                                         </div>
-                                        <div v-else-if="classroom.image_option === 'upload'">
+                                        <div v-else>
                                             <input :id="'classroom_image_file_' + index" type="file" accept="image/*" @change="handleImageFile($event, classroom)" class="mt-1 block w-full" />
                                             <div v-if="form.errors[`classrooms.${index}.image_file`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.image_file`] }}</div>
-                                           
+                                            <div v-if="(classroom.image_url || classroom.image_path) && !classroom.image_file" class="mt-2">
+                                                <img :src="classroom.image_url || `/storage/${classroom.image_path}`" alt="Current Image" class="w-32 h-32 object-cover rounded" />
+                                            </div>
                                         </div>
-                                        <!-- Preview general si no none y existe imagen -->
-                                        <div v-if="(classroom.image_url || classroom.image_path) && classroom.image_option !== 'none'" class="mt-2">
-                                            <img :src="classroom.image_url ? classroom.image_url : (classroom.image_path ? `/storage/${classroom.image_path}` : '')" 
-                                                 alt="Current Image" 
-                                                 class="w-32 h-32 object-cover rounded" 
-                                                 @error="e => e.target.src = '/images/placeholder.png'" />
-                                            <p class="text-sm text-gray-500">Imagen actual.</p>
-                                        </div>
-                                        <div class="text-sm text-gray-500 mt-1">La imagen es opcional.</div>
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                                            <input :id="'classroom_uses_db_storage_' + index" type="checkbox" v-model="classroom.uses_db_storage" class="mt-1 rounded border-gray-300 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                            Usar almacenamiento en base de datos
-                                        </label>
+                                        <input :id="'classroom_uses_db_storage_' + index" type="checkbox" v-model="classroom.uses_db_storage" class="mt-1 rounded border-gray-300 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
                                         <div v-if="form.errors[`classrooms.${index}.uses_db_storage`]" class="text-red-500 text-sm mt-1">{{ form.errors[`classrooms.${index}.uses_db_storage`] }}</div>
                                     </div>
                                     <button type="button" @click="removeClassroom(index)" class="inline-block mt-2 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">
