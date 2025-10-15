@@ -64,60 +64,16 @@ const handleImageFile = (event, target) => {
 };
 
 const submit = () => {
-    // Preparar FormData para enviar archivos
-    const formData = new FormData();
+    form.classrooms = classrooms.value.map(classroom => ({
+        ...classroom,
+        image_file: classroom.image_option === 'upload' ? classroom.image_file : null,
+    }));
     
-    // Agregar datos de la facultad
-    formData.append('name', form.name);
-    formData.append('location', form.location);
-    formData.append('responsible', form.responsible);
-    formData.append('email', form.email || '');
-    formData.append('phone', form.phone || '');
-    formData.append('municipality_id', form.municipality_id);
-    formData.append('services', form.services);
-    formData.append('description', form.description);
-    formData.append('web_site', form.web_site || '');
-    formData.append('capacity', form.capacity || '0');
-    formData.append('image_option', form.image_option);
-    
-    // Agregar imagen de la facultad
-    if (form.image_option === 'url') {
-        formData.append('image_url', form.image_url);
-    } else if (form.image_option === 'upload' && form.image_file) {
-        formData.append('image_file', form.image_file);
-    }
-    
-    // Agregar classrooms
-    classrooms.value.forEach((classroom, index) => {
-        formData.append(`classrooms[${index}][name]`, classroom.name);
-        formData.append(`classrooms[${index}][capacity]`, classroom.capacity);
-        formData.append(`classrooms[${index}][services]`, classroom.services);
-        formData.append(`classrooms[${index}][responsible]`, classroom.responsible || '');
-        formData.append(`classrooms[${index}][email]`, classroom.email || '');
-        formData.append(`classrooms[${index}][phone]`, classroom.phone || '');
-        formData.append(`classrooms[${index}][web_site]`, classroom.web_site || '');
-        formData.append(`classrooms[${index}][image_option]`, classroom.image_option);
-        formData.append(`classrooms[${index}][uses_db_storage]`, classroom.uses_db_storage ? '1' : '0');
-        
-        // Agregar imagen del classroom
-        if (classroom.image_option === 'url') {
-            formData.append(`classrooms[${index}][image_url]`, classroom.image_url || '');
-        } else if (classroom.image_option === 'upload' && classroom.image_file) {
-            formData.append(`classrooms[${index}][image_file]`, classroom.image_file);
-        }
-    });
-    
-    // Enviar con Inertia
     form.post(route('admin.general.faculties.store'), {
-        data: formData,
-        forceFormData: true,
         onSuccess: () => {
             form.reset();
             classrooms.value = [];
         },
-        onError: (errors) => {
-            console.error('Errores de validación:', errors);
-        }
     });
 };
 </script>
