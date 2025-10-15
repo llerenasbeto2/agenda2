@@ -110,7 +110,7 @@ const submit = () => {
                                 </select>
                                 <div v-if="form.errors.responsible" class="text-red-500 text-sm mt-1">{{ form.errors.responsible }}</div>
                                 <div v-if="classroomUsers.length === 0" class="text-yellow-500 text-sm mt-1">
-                                    No hay usuarios con rol de responsable disponibles.
+                                    No hay usuarios con rol de responsable disponibles
                                 </div>
                             </div>
 
