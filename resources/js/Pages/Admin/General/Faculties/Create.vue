@@ -45,7 +45,6 @@ const addClassroom = () => {
         responsible: '',
         email: '',
         phone: '',
-        web_site: '',
         image_option: 'url',
         image_url: '',
         image_file: null,
@@ -257,14 +256,7 @@ const submit = () => {
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <label :for="`classroom_web_site_${index}`" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Sitio Web</label>
-                                            <input :id="`classroom_web_site_${index}`" type="url" v-model="classroom.web_site"
-                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" />
-                                            <div v-if="form.errors[`classrooms.${index}.web_site`]" class="text-red-500 text-sm mt-1">
-                                                {{ form.errors[`classrooms.${index}.web_site`] }}
-                                            </div>
-                                        </div>
+
                                     </div>
 
                                     <div class="mt-4">

@@ -68,7 +68,6 @@ public function store(Request $request)
         'classrooms.*.responsible' => 'nullable|exists:users,id',
         'classrooms.*.email' => 'nullable|email|max:255',
         'classrooms.*.phone' => 'nullable|string|max:50',
-        'classrooms.*.web_site' => 'nullable|url|max:255',
         'classrooms.*.image_option' => 'required|in:url,upload',
         'classrooms.*.image_url' => 'nullable|url|max:255|required_if:classrooms.*.image_option,url',
         'classrooms.*.image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:classrooms.*.image_option,upload',
@@ -227,7 +226,7 @@ private function crearClassrooms(array $classroomsData, faculty $faculty, Reques
             'responsible' => $classroomData['responsible'] ?? null,
             'email' => $classroomData['email'] ?? null,
             'phone' => $classroomData['phone'] ?? null,
-            'web_site' => $classroomData['web_site'] ?? null,
+            
             'uses_db_storage' => $classroomData['uses_db_storage'],
         ];
         
@@ -303,7 +302,6 @@ public function update(Request $request, faculty $faculty)
         'classrooms.*.responsible' => 'nullable|exists:users,id',
         'classrooms.*.email' => 'nullable|email|max:255',
         'classrooms.*.phone' => 'nullable|string|max:50',
-        'classrooms.*.web_site' => 'nullable|url|max:255',
         'classrooms.*.image_option' => 'required|in:url,upload',
         'classrooms.*.image_url' => 'nullable|url|max:255|required_if:classrooms.*.image_option,url',
         'classrooms.*.image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:classrooms.*.image_option,upload',
@@ -549,7 +547,7 @@ private function procesarClassrooms(array $classroomsData, faculty $faculty, Req
             'responsible' => $classroomData['responsible'] ?? null,
             'email' => $classroomData['email'] ?? null,
             'phone' => $classroomData['phone'] ?? null,
-            'web_site' => $classroomData['web_site'] ?? null,
+            
             'uses_db_storage' => $classroomData['uses_db_storage'],
         ];
         
