@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\General;
 
 use App\Http\Controllers\Controller;
@@ -14,7 +13,6 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-
 
 class FacultyController extends Controller
 {
@@ -47,6 +45,7 @@ class FacultyController extends Controller
 
 public function store(Request $request)
 {
+    // Validación simplificada - los archivos se validan manualmente
     $validated = $request->validate([
         'name' => 'required|string|max:255',
         'location' => 'required|string|max:255',
@@ -59,9 +58,8 @@ public function store(Request $request)
         'web_site' => 'nullable|url|max:255',
         'capacity' => 'nullable|integer|min:1',
         'image_option' => 'required|in:url,upload',
-        'image_url' => 'nullable|url|max:255|required_if:image_option,url',
-        'image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:image_option,upload',
-        'classrooms' => 'array',
+        'image_url' => 'nullable|url|max:255',
+        'classrooms' => 'nullable|array',
         'classrooms.*.name' => 'required|string|max:255',
         'classrooms.*.capacity' => 'required|integer|min:1',
         'classrooms.*.services' => 'required|string',
@@ -69,10 +67,20 @@ public function store(Request $request)
         'classrooms.*.email' => 'nullable|email|max:255',
         'classrooms.*.phone' => 'nullable|string|max:50',
         'classrooms.*.image_option' => 'required|in:url,upload',
-        'classrooms.*.image_url' => 'nullable|url|max:255|required_if:classrooms.*.image_option,url',
-        'classrooms.*.image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:classrooms.*.image_option,upload',
+        'classrooms.*.image_url' => 'nullable|url|max:255',
         'classrooms.*.uses_db_storage' => 'required|boolean',
     ]);
+
+    // Validar imagen principal
+    if ($request->image_option === 'upload') {
+        $request->validate([
+            'image_file' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048'
+        ]);
+    } elseif ($request->image_option === 'url') {
+        $request->validate([
+            'image_url' => 'required|url|max:255'
+        ]);
+    }
 
     DB::beginTransaction();
     
@@ -100,7 +108,7 @@ public function store(Request $request)
         
         // 6. Crear classrooms en batch
         if ($request->has('classrooms') && is_array($request->classrooms)) {
-            $this->crearClassrooms($request->classrooms, $faculty);
+            $this->crearClassroomsConArchivos($request, $faculty);
         }
         
         DB::commit();
@@ -113,10 +121,72 @@ public function store(Request $request)
     } catch (\Exception $e) {
         DB::rollBack();
         \Log::error('Error al crear facultad: ' . $e->getMessage());
+        \Log::error('Stack trace: ' . $e->getTraceAsString());
         
         return redirect()->back()
             ->withInput()
-            ->with('error', 'Error al crear la facultad.');
+            ->with('error', 'Error al crear la facultad: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Crea los classrooms manejando correctamente los archivos
+ */
+private function crearClassroomsConArchivos(Request $request, faculty $faculty): void
+{
+    $responsablesToUpdate = [];
+    
+    foreach ($request->classrooms as $index => $classroomData) {
+        // Validar imagen del classroom según la opción
+        if ($classroomData['image_option'] === 'upload') {
+            if ($request->hasFile("classrooms.{$index}.image_file")) {
+                $request->validate([
+                    "classrooms.{$index}.image_file" => 'required|image|mimes:jpeg,png,jpg,gif|max:2048'
+                ]);
+            }
+        }
+        
+        $classroom = [
+            'name' => $classroomData['name'],
+            'capacity' => $classroomData['capacity'],
+            'services' => $classroomData['services'],
+            'responsible' => $classroomData['responsible'] ?? null,
+            'email' => $classroomData['email'] ?? null,
+            'phone' => $classroomData['phone'] ?? null,
+            'uses_db_storage' => $classroomData['uses_db_storage'] ?? false,
+        ];
+        
+        // Procesar imagen del classroom
+        if ($classroomData['image_option'] === 'upload') {
+            if ($request->hasFile("classrooms.{$index}.image_file")) {
+                $classroom['image_url'] = null;
+                $classroom['image_path'] = $request->file("classrooms.{$index}.image_file")
+                    ->store('classrooms', 'public');
+            } else {
+                $classroom['image_url'] = null;
+                $classroom['image_path'] = null;
+            }
+        } elseif ($classroomData['image_option'] === 'url') {
+            $classroom['image_url'] = $classroomData['image_url'] ?? null;
+            $classroom['image_path'] = null;
+        } else {
+            $classroom['image_url'] = null;
+            $classroom['image_path'] = null;
+        }
+        
+        $createdClassroom = $faculty->classrooms()->create($classroom);
+        
+        // Preparar actualización de responsable
+        if (!empty($classroomData['responsible'])) {
+            $responsablesToUpdate[$classroomData['responsible']] = $createdClassroom->id;
+        }
+    }
+    
+    // Actualizar todos los responsables de classrooms en batch
+    foreach ($responsablesToUpdate as $userId => $classroomId) {
+        User::where('id', $userId)
+            ->where('rol_id', 2)
+            ->update(['responsible_id' => $classroomId]);
     }
 }
 
@@ -610,7 +680,7 @@ public function destroy(faculty $faculty)
         
         // 6. Eliminar todos los classrooms
         if (!empty($classroomIds)) {
-            classroom::whereIn('id', $classroomIds)->delete();
+            Classroom::whereIn('id', $classroomIds)->delete();
         }
         
         // 7. Eliminar imagen de la facultad
