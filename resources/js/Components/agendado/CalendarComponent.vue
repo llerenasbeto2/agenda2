@@ -3,20 +3,20 @@ import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue';
 import axios from 'axios';
 import Excel_component from './Excel_component.vue';
 
-const props = defineProps({
-  initialDate: String,
-  initialStart: String,
+const props = defineProps({  //datos que vienen de eventos/create7
+  initialDate: String,   
+  initialStart: String,  
   initialEnd: String,
   classroomId: {
     type: [Number, String],
     default: null
   },
-  persistedEvents: {
+  persistedEvents: {  //eventos guardados 
     type: Array,
     default: () => []
   }
 });
-
+// eventos que puede enviar a eventos/create
 const emit = defineEmits(['update-form', 'events-updated']);
 
 const calendarEl = ref(null);
@@ -42,13 +42,14 @@ const timeOptions = ref([
   '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
   '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'
 ]);
-
+// Calcula las fechas de la semana actual, Encuentra el lunes de la semana Ajusta según currentWeek (para navegar semanas)
 const getCurrentWeekDates = computed(() => {
   const today = new Date();
   const firstDayOfWeek = new Date(today);
   firstDayOfWeek.setDate(today.getDate() - today.getDay() + 1);
   firstDayOfWeek.setDate(firstDayOfWeek.getDate() + currentWeek.value * 7);
   const weekDates = [];
+ // Genera array con 5 días (Lunes a Viernes) Retorna las fechas de la semana
   for (let i = 0; i < 5; i++) {
     const dayDate = new Date(firstDayOfWeek.getFullYear(), firstDayOfWeek.getMonth(), firstDayOfWeek.getDate() + i);
     weekDates.push(dayDate);
@@ -119,7 +120,7 @@ const checkForConflicts = async (dates) => {
   }
 };
 
-// Watch para cargar reservaciones cuando cambie el classroom_id
+// Observa cambios en el aula seleccionada, cuando cambia, recarga las reservaciones de esa aula
 watch(() => props.classroomId, (newClassroomId) => {
   if (newClassroomId) {
     loadExistingReservations();
@@ -129,6 +130,9 @@ watch(() => props.classroomId, (newClassroomId) => {
   }
 }, { immediate: true });
 
+
+//funcion para navegar entre semanas 
+//recorre ala anterior semana
 const previousWeek = () => {
   currentWeek.value--;
   if (calendar) {
@@ -137,7 +141,7 @@ const previousWeek = () => {
   }
   selectedDay.value = null;
 };
-
+//recorre hacia la siguiente semana 
 const nextWeek = () => {
   currentWeek.value++;
   if (calendar) {
@@ -153,7 +157,7 @@ const selectDay = (dayIndex) => {
     calendar.gotoDate(selectedDay.value);
   }
 };
-
+// Abre el modal para seleccionar fecha hor INICIAL
 const openModal = (day, initialTime = null, eventIndex = null) => {
   selectedDay.value = day;
   modalInitialTime.value = initialTime;
@@ -183,7 +187,7 @@ const openModal = (day, initialTime = null, eventIndex = null) => {
     tempStartTime.value = startDateTime.split(' ')[1]?.substring(0, 5) || '';
     tempEndTime.value = endDateTime.split(' ')[1]?.substring(0, 5) || '';
     
-    // Configurar datos de recurrencia
+    // Si el evento es repetible, carga la configuración de recurrencia
     if (event.recurring_days !== null && event.recurring_days !== undefined) {
       isRecurring.value = true;
       
@@ -241,7 +245,7 @@ const closeModal = () => {
   repetitionCount.value = null;
   conflictMessage.value = '';
 };
-
+//Maneja el cambio del checkbox "Evento repetible" Muestra/oculta las opciones de recurrencia
 const handleRecurringChange = (event) => {
   isRecurring.value = event.target.checked;
   setTimeout(() => {
@@ -251,11 +255,14 @@ const handleRecurringChange = (event) => {
     }
   }, 0);
 };
-
+//Calcula el enésimo día de la semana en un mes Ejemplo: "El 3er martes de enero" Usado para eventos mensuales repetibles
 const nthWeekdayOfMonth = (weekday, n, date) => {
   let d = new Date(date.getFullYear(), date.getMonth(), 1);
   let add = (weekday - d.getDay() + 7) % 7 + (n - 1) * 7;
   d.setDate(1 + add);
+
+
+  //Maneja casos edge cuando el cálculo se sale del mes, Retorna el último día válido del mes
   const originalMonth = d.getMonth();
   if (d.getMonth() !== originalMonth) {
     d = new Date(d.getFullYear(), originalMonth + 1, 0);
@@ -285,7 +292,7 @@ const saveTime = async () => {
     start_time: tempStartTime.value,
     end_time: tempEndTime.value
   }];
-
+//Prepara objeto con datos de recurrencia y Ordena los días de la semana (Lunes primero),Convierte a JSON para almacenar
   const recurringData = {
     is_recurring: isRecurring.value,
     recurring_days: isRecurring.value && recurringDays.value.length > 0 ? JSON.stringify(

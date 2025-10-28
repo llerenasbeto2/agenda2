@@ -9,11 +9,12 @@ import CalendarComponent from '@/Components/agendado/CalendarComponent.vue';
 import Condiciones_requerimientos from '@/Components/agendado/Condiciones_requerimientos.vue';
 import Expert_user from '@/Components/agendado/Expert_user.vue';
 
-const page = usePage();
+const page = usePage(); 
 const isAuthenticated = computed(() => !!page.props.auth.user);
 
-const props = page.props;
+const props = page.props;  //Extrae todas las props enviadas desde el método create()
 
+// ayudan a navegar a los pasos (1 - 4)
 const currentStep = ref(1);
 const maxReached = ref(1);
 
@@ -55,9 +56,11 @@ const form = useForm({
   payment_date: null,
 });
 
+// Se extraen las categorías y municipios enviados desde el controlador para poblar los selects.
 const categories = ref(props.formData.categories || []);
 const municipalities = ref(props.formData.municipalities || []);
 
+//Para cada paso, verifica campos específicos
 const validateCurrentStep = () => {
   switch (currentStep.value) {
     case 1:
@@ -80,7 +83,7 @@ const validateCurrentStep = () => {
       return false;
   }
 };
-
+// Avanza al siguiente paso solo si la validación es exitosa y actualiza el máximo alcanzado.
 const nextStep = () => {
   if (validateCurrentStep()) {
     if (currentStep.value < 4) {
@@ -91,13 +94,13 @@ const nextStep = () => {
     alert('Por favor, completa todos los campos requeridos antes de avanzar.');
   }
 };
-
+//Retrocede un paso (sin validación).
 const prevStep = () => {
   if (currentStep.value > 1) {
     currentStep.value--;
   }
 };
-
+//Permite saltar a cualquier paso ya completado previamente.
 const goToStep = (step) => {
   if (step <= maxReached.value) {
     currentStep.value = step;
@@ -105,7 +108,7 @@ const goToStep = (step) => {
     alert('Por favor, completa los campos previos antes de avanzar a este paso.');
   }
 };
-
+//form post envia los datos ala funcion store() del controlador hace un post a los datos
 const submit = () => {
   if (validateCurrentStep()) {
     form.post(route('myreservationsclassroom.store'), {
@@ -158,7 +161,7 @@ const updateForm = (date, start, end, recurringData = {}) => {
   });
 };
 
-// Loguear info al cambiar de paso
+//Se ejecuta cada vez que cambia de paso y loguea todos los datos actuales del formulario para debugging  (manejo de errores).
 watch(currentStep, (newStep, oldStep) => {
   console.log(`Cambiando de paso ${oldStep} a ${newStep}`);
   console.log('Información que se enviará a la base de datos:', {
@@ -187,7 +190,7 @@ watch(currentStep, (newStep, oldStep) => {
     payment_date: null,
   });
 });
-
+// cuando se cambia de municipio
 // Resetear faculty_id, classroom_id y eventos del calendario al cambiar el municipio
 watch(() => form.municipality_id, (newVal, oldVal) => {
   if (newVal !== oldVal && newVal !== '') {
@@ -199,8 +202,9 @@ watch(() => form.municipality_id, (newVal, oldVal) => {
     console.log('Municipio cambiado. Reset de faculty_id, classroom_id y eventos del calendario.');
   }
 });
-
+//cuando cambia de facultad 
 // Resetear classroom_id y eventos del calendario al cambiar la facultad
+//Se manda a llamar getClassrooms()
 watch(() => form.faculty_id, (newVal, oldVal) => {
   if (newVal !== oldVal && newVal !== null) {
     form.classroom_id = null;
@@ -210,8 +214,9 @@ watch(() => form.faculty_id, (newVal, oldVal) => {
     console.log('Facultad cambiada. Reset de classroom_id y eventos del calendario.');
   }
 });
-
+//cuando cambia de salon 
 // Resetear eventos del calendario al cambiar el aula
+// se manda a llamar getExistingReservations()
 watch(() => form.classroom_id, (newVal, oldVal) => {
   if (newVal !== oldVal && newVal !== null) {
     persistedEvents.value = [];

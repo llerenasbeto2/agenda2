@@ -21,6 +21,7 @@ class Reservation_ClassroomController extends Controller
 {
 public function index(Request $request)
 {
+    // Carga de datos
     $query = reservation_classroom::with(['classroom', 'category', 'user', 'faculty', 'municipality'])
         ->select(
             'id', 'event_title', 'status', 'municipality_id', 'start_datetime', 'end_datetime',
@@ -28,13 +29,14 @@ public function index(Request $request)
             'irregular_dates', 'requirements', 'attendees', 'faculty_id','cost', 'is_paid', 'payment_date'
 
         );
-
+        // Filtro de  busqueda por el titulo
     if ($request->has('event_title') && !empty($request->event_title)) {
         $query->where('event_title', 'like', '%' . $request->event_title . '%');
     }
-
+    // Ordena por fecha inicio DESC (más recientes primero).
     $reservaciones = $query->orderBy('start_datetime', 'desc')->get();
 
+    //Convierte irregular_dates (JSON string) a array PHP.
     $reservaciones->transform(function ($reservacion) {
         if ($reservacion->irregular_dates && is_string($reservacion->irregular_dates)) {
             $reservacion->irregular_dates = json_decode($reservacion->irregular_dates, true);
@@ -42,6 +44,7 @@ public function index(Request $request)
         return $reservacion;
     });
 
+    /// carga de datos de  Facultades;
     $faculties = faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
         return [
             'id' => (int) $faculty->id,
@@ -49,7 +52,7 @@ public function index(Request $request)
             'municipality_id' => $faculty->municipality_id !== null ? (int) $faculty->municipality_id : null
         ];
     })->values();
-
+    /// carga de datos de  Classrooms;
     $classrooms = classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
         return [
             'id' => (int) $classroom->id,
@@ -57,7 +60,7 @@ public function index(Request $request)
             'faculty_id' => $classroom->faculty_id !== null ? (int) $classroom->faculty_id : null
         ];
     })->values();
-
+    // Similar para categories y municipalities (map simple: id/name).
     return Inertia::render('Admin/General/Dashboard', [
         'reservaciones' => $reservaciones,
         'faculties' => $faculties,
@@ -73,20 +76,23 @@ public function index(Request $request)
 }
     public function cambiarEstado(Request $request, $id)
 {
+    //  VALIDAR - Solo status requerido, valores permitidos.
     $request->validate([
         'status' => 'required|string|in:Pendiente,Aprobado,Rechazado,Cancelado,No_realizado,Realizado',
     ]);
-
+    // ENCONTRAR Y ACTUALIZAR.
     $reservation = reservation_classroom::findOrFail($id);
     $reservation->status = $request->status;
     $reservation->save();
-
+    // Vuelve al dashboard con mensaje.
     return back()->with('success', 'Estado de la reservación actualizado correctamente.');
 } 
 public function edit(reservation_classroom $reservacion)
 {
+    //Carga de relaciones 
     $reservacion->load(['faculty', 'classroom', 'category', 'municipality']);
 
+    //Devuelve un JSON con los datos de la reservacion ya formateados
     return response()->json([
         'reservation' => [
             'id' => (int) $reservacion->id,
@@ -114,6 +120,7 @@ public function edit(reservation_classroom $reservacion)
             'payment_date' => $reservacion->payment_date ? $reservacion->payment_date->format('Y-m-d') : null,
 
         ],
+        // Carga de datos de faculties, 
         'faculties' => faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
             return [
                 'id' => (int) $faculty->id,
@@ -121,6 +128,7 @@ public function edit(reservation_classroom $reservacion)
                 'municipality_id' => $faculty->municipality_id !== null ? (int) $faculty->municipality_id : null
             ];
         })->values(),
+        // Carga de datos de classrooms, 
         'classrooms' => classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
             return [
                 'id' => (int) $classroom->id,
@@ -128,14 +136,18 @@ public function edit(reservation_classroom $reservacion)
                 'faculty_id' => $classroom->faculty_id !== null ? (int) $classroom->faculty_id : null
             ];
         })->values(),
+        // Carga de datos de categorias, 
         'categorie' => Categorie::select('id', 'name')->get()->map(function ($category) {
             return ['id' => (int) $category->id, 'name' => $category->name];
         })->values(),
+        // Carga de datos de municipio, 
         'municipalities' => Municipality::select('id', 'name')->get()->map(function ($municipality) {
             return ['id' => (int) $municipality->id, 'name' => $municipality->name];
         })->values(),
     ]);
 }
+
+
 
 public function update(Request $request, reservation_classroom $reservacion)
 {
@@ -171,14 +183,12 @@ public function update(Request $request, reservation_classroom $reservacion)
 
     // Manejar fechas de inicio y fin
     if (!empty($validated['start_datetime'])) {
-        // Convertir el formato datetime-local a formato ISO
         if (strpos($validated['start_datetime'], 'Z') === false) {
             $validated['start_datetime'] = date('Y-m-d H:i:s', strtotime($validated['start_datetime']));
         }
     }
 
     if (!empty($validated['end_datetime'])) {
-        // Convertir el formato datetime-local a formato ISO
         if (strpos($validated['end_datetime'], 'Z') === false) {
             $validated['end_datetime'] = date('Y-m-d H:i:s', strtotime($validated['end_datetime']));
         }
@@ -194,13 +204,15 @@ public function update(Request $request, reservation_classroom $reservacion)
         }
     }
 
-    // Manejar fechas irregulares
+    // Manejar fechas irregulares - AQUÍ ESTÁ LA CORRECCIÓN
     if ($request->has('irregular_dates')) {
         if ($request->irregular_dates === null || $request->irregular_dates === '' || $request->irregular_dates === 'null') {
             $validated['irregular_dates'] = null;
         } else {
             try {
+                // Decodificar el JSON
                 $irregularDates = json_decode($request->irregular_dates, true);
+                
                 if (json_last_error() !== JSON_ERROR_NONE) {
                     return back()->withErrors(['irregular_dates' => 'El formato de las fechas irregulares no es válido']);
                 }
@@ -209,17 +221,33 @@ public function update(Request $request, reservation_classroom $reservacion)
                     return back()->withErrors(['irregular_dates' => 'Las fechas irregulares deben ser un array válido']);
                 }
                 
-                // Validar cada fecha irregular
+                // Validar y limpiar cada fecha irregular
+                $cleanedDates = [];
                 foreach ($irregularDates as $index => $date) {
                     if (!isset($date['date']) || !isset($date['startTime']) || !isset($date['endTime'])) {
                         return back()->withErrors(['irregular_dates' => "Fecha irregular #{$index} incompleta"]);
                     }
+                    
+                    // Solo guardar los campos necesarios (sin isMain ni displayText)
+                    $cleanedDates[] = [
+                        'date' => $date['date'],
+                        'startTime' => $date['startTime'],
+                        'endTime' => $date['endTime']
+                    ];
                 }
                 
-                $validated['irregular_dates'] = json_encode($irregularDates);
+                // Guardar como JSON limpio
+                $validated['irregular_dates'] = count($cleanedDates) > 0 ? json_encode($cleanedDates, JSON_UNESCAPED_UNICODE) : null;
+                
+                \Log::info('Fechas irregulares procesadas:', [
+                    'original_count' => count($irregularDates),
+                    'cleaned_count' => count($cleanedDates),
+                    'data' => $cleanedDates
+                ]);
+                
             } catch (\Exception $e) {
                 \Log::error('Error al procesar fechas irregulares:', ['error' => $e->getMessage()]);
-                return back()->withErrors(['irregular_dates' => 'Error al procesar las fechas irregulares']);
+                return back()->withErrors(['irregular_dates' => 'Error al procesar las fechas irregulares: ' . $e->getMessage()]);
             }
         }
     }
@@ -282,7 +310,10 @@ public function update(Request $request, reservation_classroom $reservacion)
         // Actualizar la reservación con todos los campos validados
         $reservacion->update($validated);
         
-        \Log::info('Reservación actualizada exitosamente:', ['id' => $reservacion->id]);
+        \Log::info('Reservación actualizada exitosamente:', [
+            'id' => $reservacion->id,
+            'irregular_dates' => $validated['irregular_dates'] ?? 'null'
+        ]);
 
         return redirect()->route('admin.general.dashboard')
             ->with('success', 'Reservación actualizada correctamente');
@@ -303,7 +334,7 @@ public function update(Request $request, reservation_classroom $reservacion)
 
      public function store(Request $request)
 {
-    // Validation rules
+    // Validation de los datos 
     $validated = $request->validate([
         'user_id' => 'required|exists:users,id',
         'full_name' => 'required|string|max:255',
@@ -448,9 +479,10 @@ public function update(Request $request, reservation_classroom $reservacion)
     
      public function destroy($id)
      {
+        //se encuentra la reservacion y se ejecuta el delete()
          $reservacion = reservation_classroom::findOrFail($id);
          $reservacion->delete();
-         
+         // se envia el mensaje 
          return redirect()->route('admin.general.dashboard') // o el nombre de tu ruta de listado
              ->with('success', 'Reservación eliminada exitosamente');
      }
@@ -459,20 +491,21 @@ public function update(Request $request, reservation_classroom $reservacion)
      public function sendComment(Request $request)
 {
     \Log::info('Inicio de sendComment', ['request' => $request->all()]);
-
+    //Validar los datos 
     $validated = $request->validate([
         'reservation_id' => 'required|exists:reservations_classrooms,id',
         'comment' => 'required|string|max:1000',
     ]);
 
     try {
+        // Busca la reserva y se verifica la autenticacion
         $reservation = reservation_classroom::with('classroom')->findOrFail($validated['reservation_id']);
         $sender = auth()->user();
 
-        if (!$sender) {
+        if (!$sender) {// si no esta utenticado
             return response()->json(['error' => 'Usuario no autenticado'], 401);
         }
-
+        // si el correo esta mal
         if (!$reservation->Email || !filter_var($reservation->Email, FILTER_VALIDATE_EMAIL)) {
             return response()->json(['error' => 'La reservación no tiene un correo electrónico válido'], 422);
         }
@@ -484,7 +517,7 @@ public function update(Request $request, reservation_classroom $reservacion)
             'comment' => $validated['comment'],
         ]);
 
-        // Envío simple con Mail::raw
+        // Envío de email  con Mail::raw
         Mail::raw('Comentario: ' . $validated['comment'], function ($message) use ($reservation, $sender) {
             $message->to($reservation->Email)
                     ->from(config('mail.from.address'), config('mail.from.name'))
@@ -494,6 +527,8 @@ public function update(Request $request, reservation_classroom $reservacion)
 
         \Log::info('Correo enviado exitosamente');
         return response()->json(['success' => 'Comentario enviado correctamente']);
+
+        //sino se envia 
     } catch (\Exception $e) {
         \Log::error('Error al enviar comentario', [
             'message' => $e->getMessage(),
@@ -517,19 +552,21 @@ public function update(Request $request, reservation_classroom $reservacion)
 public function updatePayment(Request $request)
 {
     try {
+
+        // se validan los datos 
         $validated = $request->validate([
             'reservation_id' => 'required|exists:reservations_classrooms,id',
             'cost' => 'required|numeric|min:0',
             'is_paid' => 'required|boolean',
             'payment_date' => 'nullable|date'
         ]);
-
+        // se actualizan los datos 
         $reserva = reservation_classroom::findOrFail($request->reservation_id);
         $reserva->cost = $request->cost;
         $reserva->is_paid = $request->is_paid;
         $reserva->payment_date = $request->payment_date;
         $reserva->save();
-
+        // ejecuta un json de respuesta 
         return response()->json([
             'message' => 'Detalles de pago actualizados correctamente',
             'data' => [
@@ -539,6 +576,8 @@ public function updatePayment(Request $request)
                 'payment_date' => $reserva->payment_date
             ]
         ]);
+
+        //en caso de error 
     } catch (\Illuminate\Validation\ValidationException $e) {
         return response()->json(['error' => 'Validación fallida', 'details' => $e->errors()], 422);
     } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {

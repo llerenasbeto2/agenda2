@@ -173,8 +173,8 @@ class MyreservationsclassroomController extends Controller
                 // Verificar irregular_dates si existen
                 if (!is_null($reservation->irregular_dates)) {
                     $irregularDates = is_string($reservation->irregular_dates) 
-                        ? json_decode($reservation->irregular_dates, true) 
-                        : $reservation->irregular_dates;
+                        ? json_decode($reservation->irregular_dates, true) // se decodifica si es json string
+                        : $reservation->irregular_dates;// sino se usa directamente 
                     
                     if (is_array($irregularDates)) {
                         foreach ($irregularDates as $date) {
@@ -309,7 +309,7 @@ public function store(Request $request)
                 $fechas_irregulares = null;
             }
         }
-        // Si irregular_dates viene como array
+        // Si irregular_dates viene como array se pasa directo
         elseif (is_array($validated['irregular_dates'])) {
             $fechas_irregulares = $validated['irregular_dates'];
         }

@@ -14,20 +14,20 @@ const form = useForm({
     message: '',
 });
 
-// Pre-fill fields for authenticated users
+// // Pre-llenado del nombre 
 if (isAuthenticated.value) {
     form.full_name = page.props.auth.user.name || '';
 }
 
 const categories = ref(['Queja', 'Sugerencia', 'Comentario']);
 
-// Watch for success flash message to show modal
+// Observa cambios en flash.success 
 watch(() => page.props.flash.success, (newSuccess) => {
     if (newSuccess) {
         showSuccessModal.value = true;
     }
 });
-
+// Envio  POST a la ruta 'quejas.store'.
 const submitComplaint = () => {
     form.post(route('quejas.store'), {
         onSuccess: () => {
@@ -40,6 +40,7 @@ const submitComplaint = () => {
     });
 };
 
+// Cierra el modal.
 const closeModal = () => {
     showSuccessModal.value = false;
 };

@@ -20,13 +20,14 @@ class FacultyController extends Controller
 {
     public function index(Request $request)
     {
+        //obtiene datos como el id y nombre de municipio asi como usuarios con rol 2 y3 
         $municipalityId = $request->query('municipality_id', 1);
         $municipalities = Municipality::all(['id', 'name']);
         $users = User::whereIn('rol_id', [2, 3])->get(['id', 'name', 'rol_id']);
 
         // Cargar todas las facultades sin filtrar por municipality_id
         $faculties = faculty::with(['classrooms', 'responsibleUser'])->get();
-
+        //Renderiza la vista Inertia pasando los datos para la tabla/lista
         return Inertia::render('Admin/General/Faculties/Index', [
             'faculties' => $faculties,
             'municipalities' => $municipalities,
@@ -35,10 +36,13 @@ class FacultyController extends Controller
         ]);
     }
 
-    // Los métodos create, store, edit, update y destroy permanecen sin cambios
+    
     public function create()
     {
+        //Carga todos los municipios para el select
         $municipalities = Municipality::all();
+
+        //Renderiza vista de creación con municipios y usuarios (o array vacío si no hay)
         return Inertia::render('Admin/General/Faculties/Create', [
             'municipalities' => $municipalities,
             'users' => User::whereIn('rol_id', [2, 3])->get(['id', 'name', 'rol_id']) ?? [],
@@ -47,6 +51,7 @@ class FacultyController extends Controller
 
 public function store(Request $request)
 {
+    //validacion de datos 
     $validated = $request->validate([
         'name' => 'required|string|max:255',
         'location' => 'required|string|max:255',
@@ -73,39 +78,40 @@ public function store(Request $request)
         'classrooms.*.image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:classrooms.*.image_option,upload',
         'classrooms.*.uses_db_storage' => 'required|boolean',
     ]);
-
+    //marca el inicio de una transacción de base de datos
     DB::beginTransaction();
     
     try {
-        // 1. Recolectar todos los responsables únicos
+        // Recolectar todos los responsables de facultad y aulas
         $responsablesIds = $this->recolectarResponsables($request);
         
-        // 2. Limpiar responsabilidades previas en batch
+       
+        //Limpia asignaciones previas de estos responsables (evita duplicados)
         if (!empty($responsablesIds)) {
             $this->limpiarResponsabilidadesPrevias($responsablesIds);
         }
         
-        // 3. Preparar datos de la facultad
+        // Preparar datos de la facultad
         $facultyData = $this->prepararDatosFacultad($request);
         
-        // 4. Crear la facultad
+        //Crear la facultad
         $faculty = faculty::create($facultyData);
         
-        // 5. Asignar responsable de la facultad
+        //  Asigna responsable a facultad (solo rol 3), actualiza user table
         if ($request->responsible) {
             $updated = User::where('id', $request->responsible)
                 ->where('rol_id', 3)
                 ->update(['responsible_id' => $faculty->id]);
-            if ($updated === 0) {
+            if ($updated === 0) {//Si no actualiza, error
                 throw new \Exception("El usuario seleccionado como responsable no tiene el rol correcto (rol_id = 3).");
             }
         }
         
-        // 6. Crear classrooms en batch
+        // 6. Crear classrooms si se envían, con sus responsables
         if ($request->has('classrooms') && is_array($request->classrooms)) {
             $this->crearClassrooms($request->classrooms, $faculty, $request);
         }
-        
+        //Confirma transacción
         DB::commit();
         
         \Log::info("Facultad ID {$faculty->id} creada con " . count($request->classrooms ?? []) . " aulas");
@@ -126,7 +132,7 @@ public function store(Request $request)
         if (str_contains($errorMessage, 'SQLSTATE')) {
             $errorMessage = 'Error de base de datos. Verifique que todos los campos obligatorios estén completos y que los IDs existan. Detalle: ' . $errorMessage;
         }
-        
+        //Re-renderiza formulario con datos viejos y error
         return Inertia::render('Admin/General/Faculties/Create', [
             'municipalities' => Municipality::all(),
             'users' => User::whereIn('rol_id', [2, 3])->get(['id', 'name', 'rol_id']) ?? [],
@@ -143,11 +149,11 @@ public function store(Request $request)
 private function recolectarResponsables(Request $request): array
 {
     $responsables = [];
-    
+    //Agrega responsable de facultad si existe
     if ($request->responsible) {
         $responsables[] = $request->responsible;
     }
-    
+    //Recorre aulas y agrega sus responsables si no vacíos
     if ($request->has('classrooms') && is_array($request->classrooms)) {
         foreach ($request->classrooms as $classroom) {
             if (!empty($classroom['responsible'])) {
@@ -155,7 +161,7 @@ private function recolectarResponsables(Request $request): array
             }
         }
     }
-    
+    ///Elimina duplicados
     return array_unique($responsables);
 }
 
@@ -164,9 +170,9 @@ private function recolectarResponsables(Request $request): array
  */
 private function limpiarResponsabilidadesPrevias(array $responsablesIds): void
 {
-    // Limpiar en faculties (batch) - solo donde responsible es numérico
+    // Limpia en facultades (solo responsables numéricos)
     faculty::whereIn('responsible', $responsablesIds)
-           ->where('responsible', 'REGEXP', '^[0-9]+$')
+           ->where('responsible', 'REGEXP', '^[0-9]+$') //Regex para solo números (evita strings)
            ->update(['responsible' => null]);
     
     // Limpiar en classrooms (batch) - solo donde responsible es numérico
@@ -174,7 +180,7 @@ private function limpiarResponsabilidadesPrevias(array $responsablesIds): void
              ->where('responsible', 'REGEXP', '^[0-9]+$')
              ->update(['responsible' => null]);
     
-    // Limpiar en users (batch)
+    //  Limpia en users (por ID y rol)
     User::whereIn('id', $responsablesIds)
         ->whereIn('rol_id', [2, 3])
         ->update(['responsible_id' => null]);
@@ -185,6 +191,7 @@ private function limpiarResponsabilidadesPrevias(array $responsablesIds): void
  */
 private function prepararDatosFacultad(Request $request): array
 {
+    //Extrae solo campos relevantes (ignora capacity, no en form)
     $data = $request->only([
         'name',
         'location',
@@ -199,7 +206,7 @@ private function prepararDatosFacultad(Request $request): array
     
     // Remover capacity ya que no está en el formulario
     
-    // Procesar imagen
+    // Procesar  imagen basada en opción
     if ($request->image_option === 'upload' && $request->hasFile('image_file')) {
         $data['image'] = $request->file('image_file')->store('faculties', 'public');
     } elseif ($request->image_option === 'url') {
@@ -216,9 +223,10 @@ private function prepararDatosFacultad(Request $request): array
  */
 private function crearClassrooms(array $classroomsData, faculty $faculty, Request $request): void
 {
-    $responsablesToUpdate = [];
+    $responsablesToUpdate = []; //  Para batch update al final
     
     foreach ($classroomsData as $index => $classroomData) {
+        //  Prepara datos base de aula
         $classroom = [
             'name' => $classroomData['name'],
             'capacity' => $classroomData['capacity'],
@@ -242,10 +250,10 @@ private function crearClassrooms(array $classroomsData, faculty $faculty, Reques
             $classroom['image_url'] = null;
             $classroom['image_path'] = null;
         }
-        
+        // Crea aula ligada a facultad
         $createdClassroom = $faculty->classrooms()->create($classroom);
         
-        // Preparar actualización de responsable
+        // Prepara update de responsable (verifica rol 2)
         if (!empty($classroomData['responsible'])) {
             $updated = User::where('id', $classroomData['responsible'])
                 ->where('rol_id', 2)
@@ -267,10 +275,12 @@ private function crearClassrooms(array $classroomsData, faculty $faculty, Reques
 
     public function edit(faculty $faculty)
     {
+        //carga facultad para pre-llenar el form
+        //carga municipios y usuarios como en create
         $faculty->load('classrooms');
         $municipalities = Municipality::all();
         $users = User::whereIn('rol_id', [2, 3])->get(['id', 'name', 'rol_id']);
-
+        //Renderiza vista edit con datos
         return Inertia::render('Admin/General/Faculties/Edit', [
             'faculty' => $faculty,
             'municipalities' => $municipalities,
@@ -280,6 +290,7 @@ private function crearClassrooms(array $classroomsData, faculty $faculty, Reques
 
 public function update(Request $request, faculty $faculty)
 {
+    //valida datos 
     $validated = $request->validate([
         'name' => 'required|string|max:255',
         'location' => 'required|string|max:255',
@@ -307,7 +318,7 @@ public function update(Request $request, faculty $faculty)
         'classrooms.*.image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048|required_if:classrooms.*.image_option,upload',
         'classrooms.*.uses_db_storage' => 'required|boolean',
     ]);
-
+    //Transacción para update
     DB::beginTransaction();
     
     try {
@@ -342,7 +353,7 @@ public function update(Request $request, faculty $faculty)
         if ($request->has('classrooms')) {
             $this->procesarClassrooms($request->classrooms, $faculty, $request);
         }
-        
+        // se guardan los cambios realizados dentro de la transacción de base de datos
         DB::commit();
         
         \Log::info("Facultad ID {$faculty->id} actualizada exitosamente");
@@ -381,11 +392,11 @@ public function update(Request $request, faculty $faculty)
  * Obtiene los IDs de classrooms enviados en el request
  */
 private function obtenerClassroomIdsEnviados(Request $request): array
-{
-    if (!$request->has('classrooms')) {
-        return [];
+{   
+    if (!$request->has('classrooms')) {//si no hay datos 
+        return [];//returna vacio
     }
-    
+    //Usa collect para filtrar/mapear IDs válidos    
     return collect($request->input('classrooms'))
         ->pluck('id')
         ->filter()
@@ -398,6 +409,7 @@ private function obtenerClassroomIdsEnviados(Request $request): array
  */
 private function determinarClassroomsAEliminar(faculty $faculty, array $submittedIds): array
 {
+    //Se usa array_diff para IDs no presentes en request
     $existingIds = $faculty->classrooms->pluck('id')->toArray();
     return array_diff($existingIds, $submittedIds);
 }

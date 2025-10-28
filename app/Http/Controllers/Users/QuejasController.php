@@ -19,7 +19,7 @@ class QuejasController extends Controller
     public function store(Request $request)
     {
         Log::info('Inicio de store complaint', ['request' => $request->all()]);
-
+        //  VALIDACIÓN - Reglas estrictas; si falla, Laravel devuelve 422 con errores.
         $validated = $request->validate([
             'full_name' => 'nullable|string|max:255',
             'anonymous' => 'boolean',
@@ -37,7 +37,7 @@ class QuejasController extends Controller
                 // Usuario no autenticado - usar email predeterminado
                 $validated['email'] = 'agendaudec@gmail.com';
             }
-
+            //CONFIGURAR REMITENTE - Basado en 'anonymous'.
             $senderEmail = $validated['anonymous'] ? config('mail.from.address') : $validated['email'];
             $senderName = $validated['anonymous'] ? 'Anónimo' : ($validated['full_name'] ?: 'Usuario');
             $recipientEmail = 'agendaudec@gmail.com'; // Siempre enviar a este destinatario
