@@ -11,37 +11,22 @@ use App\Models\reservation_classroom;
 use App\Models\classroom;
 use App\Models\Categorie;
 use App\Models\faculty;
-use App\Models\Municipality;
+use App\Models\municipality;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class Area_Reservation_ClassroomController extends Controller
 {
-    //
-   public function index(Request $request)
+    public function index(Request $request)
     {
         $user = Auth::user();
         $query = reservation_classroom::with(['classroom', 'category', 'user', 'faculty', 'municipality'])
             ->select([
-                'id',
-                'event_title',
-                'status',
-                'municipality_id',
-                'start_datetime',
-                'end_datetime',
-                'full_name',
-                'Email',
-                'phone',
-                'classroom_id',
-                'category_type',
-                'irregular_dates',
-                'requirements',
-                'attendees',
-                'faculty_id',
-                'cost',
-                'is_paid',
-                'payment_date'
+                'id', 'event_title', 'status', 'municipality_id', 'start_datetime', 'end_datetime',
+                'full_name', 'Email', 'phone', 'classroom_id', 'category_type', 
+                'irregular_dates', 'requirements', 'attendees', 'faculty_id',
+                'cost', 'is_paid', 'payment_date'
             ]);
 
         if ($user && $user->responsible_id) {
@@ -66,17 +51,16 @@ class Area_Reservation_ClassroomController extends Controller
 
         return Inertia::render('Admin/Area/Dashboard', [
             'reservaciones' => $reservaciones,
-            'faculties' => faculty::select('id', 'name')->get(),
-            'classrooms' => classroom::select('id', 'name', 'faculty_id')->get(),
+            'faculties' => Faculty::select('id', 'name')->get(),
+            'classrooms' => Classroom::select('id', 'name', 'faculty_id')->get(),
             'categorie' => Categorie::select('id', 'name')->get(),
             'municipalities' => Municipality::select('id', 'name')->get(),
             'auth' => [
                 'user' => [
                     'id' => $user->id,
-        'name' => $user->name,
-        'email' => $user->email,                    // ¡Esto es lo que faltaba!
-        'municipality' => $user->municipality_id,
-        'responsible' => $user->responsible_id,  
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'municipality' => $user->municipality_id,
                     'responsible' => $user->responsible_id,
                 ],
             ],
@@ -127,14 +111,14 @@ class Area_Reservation_ClassroomController extends Controller
                 'is_paid' => (bool) $reservacion->is_paid,
                 'payment_date' => $reservacion->payment_date ? $reservacion->payment_date->format('Y-m-d') : null,
             ],
-            'faculties' => faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
+            'faculties' => Faculty::select('id', 'name', 'municipality_id')->get()->map(function ($faculty) {
                 return [
                     'id' => (int) $faculty->id,
                     'name' => $faculty->name,
                     'municipality_id' => $faculty->municipality_id !== null ? (int) $faculty->municipality_id : null
                 ];
             })->values(),
-            'classrooms' => classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
+            'classrooms' => Classroom::select('id', 'name', 'faculty_id')->get()->map(function ($classroom) {
                 return [
                     'id' => (int) $classroom->id,
                     'name' => $classroom->name,
@@ -152,55 +136,184 @@ class Area_Reservation_ClassroomController extends Controller
 
     public function update(Request $request, reservation_classroom $reservacion)
     {
+        // Validación más flexible - todos los campos son nullable excepto status
         $validated = $request->validate([
             'full_name' => 'nullable|string|max:255',
             'Email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:255',
-            'faculty_id' => 'nullable|exists:faculties,id',
-            'municipality_id' => 'nullable|exists:municipality,id',
-            'classroom_id' => 'nullable|exists:classrooms,id',
+            'faculty_id' => 'nullable|integer|exists:faculties,id',
+            'municipality_id' => 'nullable|integer|exists:municipality,id',
+            'classroom_id' => 'nullable|integer|exists:classrooms,id',
             'event_title' => 'nullable|string|max:255',
-            'category_type' => 'nullable|exists:categories,id',
+            'category_type' => 'nullable|integer|exists:categories,id',
             'attendees' => 'nullable|integer|min:1',
             'start_datetime' => 'nullable|date',
-            'end_datetime' => 'nullable|date|after:start_datetime',
+            'end_datetime' => 'nullable|date',
             'requirements' => 'nullable|string',
             'status' => 'required|string|in:Pendiente,Aprobado,Rechazado,Cancelado,No_realizado,Realizado',
             'is_recurring' => 'nullable|boolean',
             'repeticion' => 'nullable|integer|min:1',
             'recurring_frequency' => 'nullable|string|in:daily,weekly,biweekly,monthly',
-            'recurring_days' => 'nullable|json',
-            'recurring_end_date' => 'nullable|date|after:start_datetime',
-            'irregular_dates' => 'nullable|json',
+            'recurring_days' => 'nullable|string',
+            'recurring_end_date' => 'nullable|date',
+            'irregular_dates' => 'nullable|string',
+            'cost' => 'nullable|numeric|min:0',
+            'is_paid' => 'nullable|boolean',
+            'payment_date' => 'nullable|date',
         ]);
 
+        // Log para debugging
+        \Log::info('Datos recibidos para actualizar:', $request->all());
+        \Log::info('Datos validados:', $validated);
+
+        // Manejar fechas de inicio y fin
+        if (!empty($validated['start_datetime'])) {
+            if (strpos($validated['start_datetime'], 'Z') === false) {
+                $validated['start_datetime'] = date('Y-m-d H:i:s', strtotime($validated['start_datetime']));
+            }
+        }
+
+        if (!empty($validated['end_datetime'])) {
+            if (strpos($validated['end_datetime'], 'Z') === false) {
+                $validated['end_datetime'] = date('Y-m-d H:i:s', strtotime($validated['end_datetime']));
+            }
+        }
+
+        // Validar que end_datetime sea posterior a start_datetime solo si ambas están presentes
+        if (!empty($validated['start_datetime']) && !empty($validated['end_datetime'])) {
+            $startTime = strtotime($validated['start_datetime']);
+            $endTime = strtotime($validated['end_datetime']);
+            
+            if ($endTime <= $startTime) {
+                return back()->withErrors(['end_datetime' => 'La fecha de fin debe ser posterior a la fecha de inicio']);
+            }
+        }
+
+        // ✅ CORRECCIÓN: Manejar fechas irregulares - GUARDAR TODAS LAS FECHAS
         if ($request->has('irregular_dates')) {
-            if ($request->irregular_dates === null || $request->irregular_dates === '') {
+            if ($request->irregular_dates === null || $request->irregular_dates === '' || $request->irregular_dates === 'null') {
                 $validated['irregular_dates'] = null;
             } else {
-                $irregularDates = json_decode($request->irregular_dates, true);
-                if (json_last_error() !== JSON_ERROR_NONE || !is_array($irregularDates)) {
-                    return back()->withErrors(['irregular_dates' => 'El formato de las fechas irregulares no es válido']);
+                try {
+                    // Decodificar el JSON
+                    $irregularDates = json_decode($request->irregular_dates, true);
+                    
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        return back()->withErrors(['irregular_dates' => 'El formato de las fechas irregulares no es válido']);
+                    }
+                    
+                    if (!is_array($irregularDates)) {
+                        return back()->withErrors(['irregular_dates' => 'Las fechas irregulares deben ser un array válido']);
+                    }
+                    
+                    // Validar y limpiar cada fecha irregular
+                    $cleanedDates = [];
+                    foreach ($irregularDates as $index => $date) {
+                        if (!isset($date['date']) || !isset($date['startTime']) || !isset($date['endTime'])) {
+                            return back()->withErrors(['irregular_dates' => "Fecha irregular #{$index} incompleta"]);
+                        }
+                        
+                        // Solo guardar los campos necesarios (sin isMain ni displayText)
+                        $cleanedDates[] = [
+                            'date' => $date['date'],
+                            'startTime' => $date['startTime'],
+                            'endTime' => $date['endTime']
+                        ];
+                    }
+                    
+                    // Guardar como JSON limpio
+                    $validated['irregular_dates'] = count($cleanedDates) > 0 ? json_encode($cleanedDates, JSON_UNESCAPED_UNICODE) : null;
+                    
+                    \Log::info('✅ Fechas irregulares procesadas:', [
+                        'original_count' => count($irregularDates),
+                        'cleaned_count' => count($cleanedDates),
+                        'data' => $cleanedDates
+                    ]);
+                    
+                } catch (\Exception $e) {
+                    \Log::error('❌ Error al procesar fechas irregulares:', ['error' => $e->getMessage()]);
+                    return back()->withErrors(['irregular_dates' => 'Error al procesar las fechas irregulares: ' . $e->getMessage()]);
                 }
-                $validated['irregular_dates'] = json_encode($irregularDates);
             }
         }
 
+        // Manejar días recurrentes
         if ($request->has('recurring_days')) {
-            if ($request->recurring_days === null || $request->recurring_days === '') {
+            if ($request->recurring_days === null || $request->recurring_days === '' || $request->recurring_days === 'null') {
                 $validated['recurring_days'] = null;
             } else {
-                $recurringDays = json_decode($request->recurring_days, true);
-                if (json_last_error() !== JSON_ERROR_NONE || !is_array($recurringDays)) {
-                    return back()->withErrors(['recurring_days' => 'El formato de los días recurrentes no es válido']);
+                try {
+                    $recurringDays = json_decode($request->recurring_days, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        return back()->withErrors(['recurring_days' => 'El formato de los días recurrentes no es válido']);
+                    }
+                    $validated['recurring_days'] = json_encode($recurringDays);
+                } catch (\Exception $e) {
+                    \Log::error('Error al procesar días recurrentes:', ['error' => $e->getMessage()]);
+                    return back()->withErrors(['recurring_days' => 'Error al procesar los días recurrentes']);
                 }
-                $validated['recurring_days'] = json_encode($recurringDays);
             }
         }
 
-        $reservacion->update($validated);
+        // Convertir valores vacíos a null para campos específicos
+        $nullableFields = [
+            'full_name', 'Email', 'phone', 'faculty_id', 'municipality_id', 'classroom_id', 
+            'event_title', 'category_type', 'attendees', 'start_datetime', 'end_datetime', 
+            'requirements', 'is_recurring', 'repeticion', 'recurring_frequency', 
+            'recurring_end_date', 'cost', 'payment_date'
+        ];
 
-        return redirect()->route('admin.area.dashboard')->with('success', 'Reservación actualizada correctamente');
+        foreach ($nullableFields as $field) {
+            if (isset($validated[$field]) && $validated[$field] === '') {
+                $validated[$field] = null;
+            }
+        }
+
+        // Convertir strings a enteros para campos numéricos
+        $numericFields = ['faculty_id', 'municipality_id', 'classroom_id', 'category_type', 'attendees'];
+        foreach ($numericFields as $field) {
+            if (isset($validated[$field]) && $validated[$field] !== null && $validated[$field] !== '') {
+                $validated[$field] = (int) $validated[$field];
+            }
+        }
+
+        // Convertir strings a boolean para campos booleanos
+        if (isset($validated['is_recurring'])) {
+            $validated['is_recurring'] = filter_var($validated['is_recurring'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        }
+
+        if (isset($validated['is_paid'])) {
+            $validated['is_paid'] = filter_var($validated['is_paid'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        }
+
+        // Convertir cost a float si está presente
+        if (isset($validated['cost']) && $validated['cost'] !== null) {
+            $validated['cost'] = (float) $validated['cost'];
+        }
+
+        try {
+            // Actualizar la reservación con todos los campos validados
+            $reservacion->update($validated);
+            
+            \Log::info('Reservación actualizada exitosamente:', [
+                'id' => $reservacion->id,
+                'irregular_dates' => $validated['irregular_dates'] ?? 'null'
+            ]);
+
+            return redirect()->route('admin.area.dashboard')
+                ->with('success', 'Reservación actualizada correctamente');
+                
+        } catch (\Exception $e) {
+            \Log::error('Error al actualizar reservación:', [
+                'error' => $e->getMessage(),
+                'data' => $validated,
+                'reservation_id' => $reservacion->id
+            ]);
+            
+            return back()
+                ->withInput()
+                ->withErrors(['general' => 'Error al actualizar la reservación: ' . $e->getMessage()]);
+        }
     }
 
     public function store(Request $request)
@@ -271,7 +384,7 @@ class Area_Reservation_ClassroomController extends Controller
                     }, $decodedDates));
                 }
             } catch (\Exception $e) {
-                Log::error('Error procesando fechas irregulares: ' . $e->getMessage());
+                \Log::error('Error procesando fechas irregulares: ' . $e->getMessage());
                 return back()->withInput()->with('error', 'Error al procesar fechas irregulares.');
             }
         }
@@ -321,7 +434,7 @@ class Area_Reservation_ClassroomController extends Controller
             return redirect()->route('admin.area.dashboard')
                 ->with('success', 'Reservación creada exitosamente');
         } catch (\Exception $e) {
-            Log::error('Error al crear reservación: ' . $e->getMessage(), [
+            \Log::error('Error al crear reservación: ' . $e->getMessage(), [
                 'data' => $reservationData,
                 'exception' => $e
             ]);
@@ -349,7 +462,7 @@ class Area_Reservation_ClassroomController extends Controller
         ]);
 
         try {
-            $reservation = reservation_classroom::with('classroom')->findOrFail($validated['reservation_id']);
+            $reservation = Reservation_Classroom::with('classroom')->findOrFail($validated['reservation_id']);
             $sender = auth()->user();
 
             if (!$sender) {
@@ -412,13 +525,21 @@ class Area_Reservation_ClassroomController extends Controller
             $reserva->payment_date = $request->payment_date;
             $reserva->save();
 
-            return response()->json(['message' => 'Detalles de pago actualizados correctamente']);
+            return response()->json([
+                'message' => 'Detalles de pago actualizados correctamente',
+                'data' => [
+                    'id' => $reserva->id,
+                    'cost' => $reserva->cost,
+                    'is_paid' => $reserva->is_paid,
+                    'payment_date' => $reserva->payment_date
+                ]
+            ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json(['error' => 'Validación fallida', 'details' => $e->errors()], 422);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['error' => 'Reservación no encontrada'], 404);
         } catch (\Exception $e) {
-            Log::error('Error al actualizar pago: ' . $e->getMessage(), [
+            \Log::error('Error al actualizar pago: ' . $e->getMessage(), [
                 'request_data' => $request->all(),
                 'exception' => $e->getTraceAsString()
             ]);

@@ -11,7 +11,7 @@ use App\Models\reservation_classroom;
 use App\Models\classroom;
 use App\Models\Categorie;
 use App\Models\faculty;
-use App\Models\Municipality;
+use App\Models\municipality;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -196,32 +196,53 @@ if ($endTime <= $startTime) {
 return back()->withErrors(['end_datetime' => 'La fecha de fin debe ser posterior a la fecha de inicio']);
 }
 }
-// Manejar fechas irregulares
 if ($request->has('irregular_dates')) {
-if ($request->irregular_dates === null || $request->irregular_dates === '' || $request->irregular_dates === 'null') {
-$validated['irregular_dates'] = null;
-} else {
-try {
-$irregularDates = json_decode($request->irregular_dates, true);
-if (json_last_error() !== JSON_ERROR_NONE) {
-return back()->withErrors(['irregular_dates' => 'El formato de las fechas irregulares no es válido']);
+    if ($request->irregular_dates === null || $request->irregular_dates === '' || $request->irregular_dates === 'null') {
+        $validated['irregular_dates'] = null;
+    } else {
+        try {
+            // Decodificar el JSON
+            $irregularDates = json_decode($request->irregular_dates, true);
+            
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return back()->withErrors(['irregular_dates' => 'El formato de las fechas irregulares no es válido']);
+            }
+            
+            if (!is_array($irregularDates)) {
+                return back()->withErrors(['irregular_dates' => 'Las fechas irregulares deben ser un array válido']);
+            }
+            
+            // Validar y limpiar cada fecha irregular
+            $cleanedDates = [];
+            foreach ($irregularDates as $index => $date) {
+                if (!isset($date['date']) || !isset($date['startTime']) || !isset($date['endTime'])) {
+                    return back()->withErrors(['irregular_dates' => "Fecha irregular #{$index} incompleta"]);
+                }
+                
+                // Solo guardar los campos necesarios (sin isMain ni displayText)
+                $cleanedDates[] = [
+                    'date' => $date['date'],
+                    'startTime' => $date['startTime'],
+                    'endTime' => $date['endTime']
+                ];
+            }
+            
+            // Guardar como JSON limpio
+            $validated['irregular_dates'] = count($cleanedDates) > 0 ? json_encode($cleanedDates, JSON_UNESCAPED_UNICODE) : null;
+            
+            \Log::info('✅ Fechas irregulares procesadas:', [
+                'original_count' => count($irregularDates),
+                'cleaned_count' => count($cleanedDates),
+                'data' => $cleanedDates
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('❌ Error al procesar fechas irregulares:', ['error' => $e->getMessage()]);
+            return back()->withErrors(['irregular_dates' => 'Error al procesar las fechas irregulares: ' . $e->getMessage()]);
+        }
+    }
 }
-if (!is_array($irregularDates)) {
-return back()->withErrors(['irregular_dates' => 'Las fechas irregulares deben ser un array válido']);
-}
-// Validar cada fecha irregular
-foreach ($irregularDates as $index => $date) {
-if (!isset($date['date']) || !isset($date['startTime']) || !isset($date['endTime'])) {
-return back()->withErrors(['irregular_dates' => "Fecha irregular #{$index} incompleta"]);
-}
-}
-$validated['irregular_dates'] = json_encode($irregularDates);
-} catch (\Exception $e) {
-\Log::error('Error al procesar fechas irregulares:', ['error' => $e->getMessage()]);
-return back()->withErrors(['irregular_dates' => 'Error al procesar las fechas irregulares']);
-}
-}
-}
+
 // Manejar días recurrentes
 if ($request->has('recurring_days')) {
 if ($request->recurring_days === null || $request->recurring_days === '' || $request->recurring_days === 'null') {

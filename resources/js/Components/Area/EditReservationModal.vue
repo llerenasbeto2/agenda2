@@ -319,14 +319,15 @@ const removeIrregularDate = (index) => {
   console.log('Fecha eliminada del array local (no guardada aún). Array actual:', JSON.stringify(irregularDates.value, null, 2));
 };
 
-// Preparar datos para envío - AQUÍ SE SINCRONIZA CON EL FORMULARIO
 const prepareSubmit = () => {
   // Extraer la fecha principal del array
   let mainDateObj = irregularDates.value.find(d => d.isMain);
+  
   if (!mainDateObj && irregularDates.value.length > 0) {
     mainDateObj = irregularDates.value[0];
     mainDateObj.isMain = true;
   }
+  
   if (mainDateObj) {
     form.start_datetime = `${mainDateObj.date}T${mainDateObj.startTime}:00`;
     form.end_datetime = `${mainDateObj.date}T${mainDateObj.endTime}:00`;
@@ -335,11 +336,22 @@ const prepareSubmit = () => {
     form.end_datetime = null;
   }
 
-  // Fechas irregulares: excluir la principal
-  const additional = irregularDates.value.filter(d => !d.isMain);
-  form.irregular_dates = additional.length > 0 ? JSON.stringify(additional) : null;
-  console.log('Prepared irregular_dates:', form.irregular_dates);
+  // ✅ CORRECCIÓN: Guardar TODAS las fechas irregulares, no solo las adicionales
+  // Limpiar los objetos antes de guardar (eliminar propiedades UI como displayText e isMain)
+  const cleanedDates = irregularDates.value.map(d => ({
+    date: d.date,
+    startTime: d.startTime,
+    endTime: d.endTime
+  }));
   
+  form.irregular_dates = cleanedDates.length > 0 ? JSON.stringify(cleanedDates) : null;
+  
+  console.log('✅ Datos preparados para envío:');
+  console.log('- irregular_dates en form:', form.irregular_dates);
+  console.log('- Cantidad de fechas:', irregularDates.value.length);
+  console.log('- Fechas completas:', JSON.stringify(irregularDates.value, null, 2));
+  
+  // Limpiar campos vacíos
   Object.keys(form.data()).forEach(key => {
     if (form[key] === '' && key !== 'status') {
       form[key] = null;
